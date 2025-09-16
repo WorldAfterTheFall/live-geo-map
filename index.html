@@ -19,89 +19,159 @@
 
   <style>
     :root{
-      --bg:#0b0d12; --panel:#11151c; --muted:#8a96a8; --text:#e7edf7;
-      --accent:#5ec4ff; --border:#1e2430; --chip:#1a2230; --chip-on:#243246; --card:#0f131a;
+      --bg:#0b0d12; --panel:#11151c; --muted:#8ea0b6; --text:#e7edf7;
+      --accent:#5ec4ff; --border:#1e2430; --chip:#141c28; --chip-on:#1e2a3d; --card:#0f131a;
+      --focus:#9bd6ff;
     }
     *{ box-sizing:border-box }
-    html, body { height:100%; margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0a0c10; }
+    html, body { height:100%; margin:0; background:#0a0c10; color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout */
     .app { display:grid; grid-template-columns:minmax(0,1fr) 420px; height:100%; }
-    #map { width:100%; height:100%; }
+    #map { width:100%; height:100%; transition:height .2s ease; }
+    .map-hidden { height:0 !important; min-height:0 !important; overflow:hidden; border-bottom:1px solid var(--border); }
 
-    aside { background:var(--bg); color:var(--text); border-left:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
-    .sidebar-header{ position:sticky; top:0; z-index:3; background:linear-gradient(180deg,rgba(17,21,28,.95),rgba(17,21,28,.85)); backdrop-filter:blur(4px); border-bottom:1px solid var(--border); padding:14px 14px 10px; }
-    .brand{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-    .brand .dot{ width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 10px var(--accent); }
-    h1{ font-size:18px; margin:0; letter-spacing:.2px; }
+    aside { background:var(--bg); border-left:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 
-    .topbar{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .lang-select{
-      margin-left:auto; display:flex; gap:6px; align-items:center;
-      background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:4px 8px;
-    }
-    .lang-select select{
-      background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; outline:none;
+    /* Sticky header block */
+    .sidebar-header{
+      position:sticky; top:0; z-index:3;
+      background:linear-gradient(180deg,rgba(17,21,28,.98),rgba(17,21,28,.9));
+      backdrop-filter:blur(4px);
+      border-bottom:1px solid var(--border);
+      padding:12px;
     }
 
-    .tabs{ display:flex; gap:6px; flex-wrap:wrap; padding:8px; border:1px solid var(--border); border-radius:12px; background:var(--panel); }
-    .tab{ border:1px solid var(--border); background:var(--chip); color:var(--text); padding:6px 10px; border-radius:999px; cursor:pointer; font-size:13px; transition:all .15s ease; user-select:none; }
+    .topbar{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+    .brand .dot{ width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 10px var(--accent); flex:0 0 auto; }
+    h1{ font-size:18px; margin:0; line-height:1.2; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    .lang-select{ margin-left:auto; display:flex; gap:6px; align-items:center; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:4px 8px; }
+    .lang-select label{ color:#c9d4e6; font-size:12px; }
+    .lang-select select{ background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; outline:none; }
+
+    /* Tabs */
+    .tabbar{ display:flex; gap:6px; flex-wrap:wrap; padding:8px; border:1px solid var(--border);
+      border-radius:12px; background:var(--panel); margin-top:10px;
+    }
+    .tabbar[role="tablist"]{ row-gap:8px; }
+    .tab{
+      border:1px solid var(--border); background:var(--chip); color:var(--text);
+      padding:6px 10px; border-radius:999px; cursor:pointer; font-size:13px;
+      transition:transform .12s ease, box-shadow .12s ease, background .12s ease; user-select:none;
+    }
     .tab:hover{ transform:translateY(-1px); }
-    .tab.active{ background:var(--chip-on); border-color:#2e394a; box-shadow:0 0 0 1px #2e394a inset; }
+    .tab[aria-selected="true"]{ background:var(--chip-on); border-color:#2e394a; box-shadow:0 0 0 1px #2e394a inset; }
+    .tab:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
 
+    /* Filters */
     .filters{ display:grid; gap:8px; margin-top:10px; }
     .controls{ display:flex; gap:8px; align-items:center; }
-    select, input[type="search"]{ width:100%; background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 10px; outline:none; }
-
-    /* Dropdown blocks for filters */
-    .dropdown{ border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden; }
-    .dropdown > summary{
-      list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; color:#cbd5e1; user-select:none;
-      border-bottom:1px solid var(--border);
+    select, input[type="search"], button.chip{
+      width:100%; background:#0e131a; color:var(--text);
+      border:1px solid var(--border); border-radius:10px; padding:10px 12px; outline:none; font-size:14px;
     }
+    input[type="search"]::placeholder{ color:#9fb0c6; }
+    .chip-btns{ display:flex; gap:8px; }
+    .chip-btns .chip{ flex:1 1 auto; cursor:pointer; }
+    .chip-btns .chip:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+
+    .dropdown{ border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden; }
+    .dropdown > summary{ list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; color:#cbd5e1; user-select:none; border-bottom:1px solid var(--border); }
     .dropdown > summary::-webkit-details-marker{ display:none; }
+    .dropdown[open] > summary{ background:#0e131a; }
     .dropdown-body{ padding:10px; display:grid; gap:8px; }
     .cb-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; }
     .cb{ display:flex; gap:8px; align-items:center; font-size:12px; color:#d1d7e6; }
     .cb input{ accent-color:var(--accent); }
 
-    .hint{ color:var(--muted); font-size:12px; padding:6px 2px 0; }
-
     .feed{ padding:12px; display:grid; gap:10px; overflow:auto; min-height:0; }
     .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px; cursor:pointer; }
-    .card h3{ margin:0 0 8px; font-size:15px; }
-    .meta{ color:var(--muted); font-size:12px; margin-bottom:6px; display:flex; gap:8px; flex-wrap:wrap; }
-    .source a{ color:var(--accent); text-decoration:none; }
-    .error{ background:#2b1212; color:#ffb0b0; border:1px solid #5b1f1f; padding:10px; border-radius:10px; margin:8px 0; display:none; }
-    .busy{ position:sticky; top:0; z-index:4; display:none; gap:8px; align-items:center; color:#cbd6ea; font-size:12px; margin-top:8px; }
+    .card:hover{ box-shadow:0 0 0 1px #223047 inset; }
+    .card h3{ margin:0 0 6px; font-size:15px; }
+    .meta{ color:var(--muted); font-size:12px; margin-bottom:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .tagpill{ font-size:11px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; background:#0d141d; }
 
-    /* Tag pin (emoji + color) */
+    .source a{ color:var(--accent); text-decoration:none; }
+    .empty, .error, .loading{ padding:16px; border:1px dashed var(--border); border-radius:12px; color:#cbd5e1; text-align:center; }
+
     .tag-pin .pin{
-      width:28px; height:28px; border-radius:50%;
-      display:flex; align-items:center; justify-content:center;
-      font-size:16px; line-height:1; color:#fff;
-      border:2px solid #0b0f16; box-shadow:0 2px 6px rgba(0,0,0,.5);
-      transform: translateY(0);
-      background:#3b82f6;
+      width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      font-size:16px; line-height:1; color:#fff; border:2px solid #0b0f16; box-shadow:0 2px 6px rgba(0,0,0,.5); background:#3b82f6;
     }
     .tag-pin .dot{ position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); width:6px; height:6px; background:#0b0f16; border-radius:999px; }
+
+    .footerbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding-top:8px; color:#9fb0c6; font-size:12px; }
 
     @media (max-width:980px){
       .app{ grid-template-columns:1fr; }
       aside{ border-left:none; border-top:1px solid var(--border); height:56vh; }
       #map{ height:44vh; }
       .cb-grid{ grid-template-columns:repeat(1,minmax(0,1fr)); }
+      #toggleMapBtn{ display:block; }
     }
+    @media (min-width:981px){
+      #toggleMapBtn{ display:none; }
+    }
+
+    /* Hide old region tabs (replaced by location search) */
+    #regionTabs{ display:none; }
+
+    /* Active filter chip row */
+    .active-filters{
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    }
+    .filter-chip{
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--chip-on); border:1px solid #2e394a; border-radius:999px;
+      padding:6px 10px; font-size:13px;
+    }
+    .filter-chip button{
+      background:transparent; border:none; color:#cbd5e1; cursor:pointer; font-size:14px; line-height:1;
+      padding:0 2px;
+    }
+    .filter-chip button:focus-visible{ outline:2px solid var(--focus); border-radius:6px; }
+
+    /* Typeahead suggestions panel */
+    .search-wrap{ position:relative; }
+    .suggestions{
+      position:absolute; top:100%; left:0; right:0; z-index:5;
+      background:var(--panel); border:1px solid var(--border); border-top:none;
+      border-radius:0 0 10px 10px; max-height:260px; overflow:auto;
+      box-shadow:0 6px 18px rgba(0,0,0,.35);
+    }
+    .suggestion-item{
+      padding:10px 12px; cursor:pointer; font-size:14px; color:#dbe5f5;
+      border-top:1px solid rgba(30,36,48,.5);
+    }
+    .suggestion-item:hover, .suggestion-item[aria-selected="true"]{
+      background:#0e131a;
+    }
+    .suggestion-header{
+      padding:8px 12px; font-size:12px; color:#9fb0c6; background:#0e131a; position:sticky; top:0;
+    }
+    .suggestions[hidden]{ display:none; }
   </style>
 </head>
 <body>
-  <div class="app">
-    <div id="map"></div>
+  <div class="app" aria-label="Live Incident Map Application">
+    <div id="map" role="region" aria-label="Map showing incidents"></div>
+
     <aside>
       <div class="sidebar-header">
         <div class="topbar">
-          <div class="brand"><div class="dot"></div><h1 data-i18n="title">Live Incident Map</h1></div>
+          <div class="brand" title="Live Incident Map">
+            <div class="dot" aria-hidden="true"></div>
+            <h1 id="title">Live Incident Map</h1>
+          </div>
+
           <div class="lang-select">
-            <label for="langSel" style="color:#c9d4e6; font-size:12px;" data-i18n="language">Language</label>
-            <select id="langSel" aria-label="Language">
+            <label for="langSel">Language</label>
+            <select id="langSel" aria-label="Language selection">
               <option value="en">English</option>
               <option value="zh">中文</option>
               <option value="hi">हिन्दी</option>
@@ -111,660 +181,864 @@
           </div>
         </div>
 
-        <!-- REGION TABS -->
-        <div class="tabs" id="regionTabs">
-          <div class="tab active" data-key="all" data-i18n="tab_all">All</div>
-          <div class="tab" data-key="ua_ru" data-i18n="tab_ua_ru">Ukraine / Russia</div>
-          <div class="tab" data-key="il_ps" data-i18n="tab_il_ps">Israel / Palestine</div>
-          <div class="tab" data-key="ve" data-i18n="tab_ve">Venezuela</div>
+        <!-- Region Tabs (hidden by CSS) -->
+        <div class="tabbar" id="regionTabs" role="tablist" aria-label="Regions">
+          <button class="tab" role="tab" aria-selected="true" data-key="all">All Regions</button>
+          <button class="tab" role="tab" aria-selected="false" data-key="ua_ru">Ukraine / Russia</button>
+          <button class="tab" role="tab" aria-selected="false" data-key="il_ps">Israel / Palestine</button>
+          <button class="tab" role="tab" aria-selected="false" data-key="ve">Venezuela</button>
         </div>
 
-        <!-- FILTERS -->
+        <!-- Theme Tabs -->
+        <div class="tabbar" id="themeTabs" role="tablist" aria-label="Themes">
+          <button class="tab" role="tab" aria-selected="true" data-theme="all">All</button>
+          <button class="tab" role="tab" aria-selected="false" data-theme="politics">Politics/Geopolitics</button>
+          <button class="tab" role="tab" aria-selected="false" data-theme="conflict">Conflict</button>
+          <button class="tab" role="tab" aria-selected="false" data-theme="economics">Economics</button>
+          <button class="tab" role="tab" aria-selected="false" data-theme="disasters">Disasters</button>
+          <button class="tab" role="tab" aria-selected="false" data-theme="society">Society</button>
+        </div>
+
+        <!-- Filters -->
         <div class="filters">
-          <div class="controls">
-            <select id="timeWindow">
-              <option value="all" data-i18n="time_all">All time</option>
-              <option value="24h" data-i18n="time_24h">Last 24 hours</option>
-              <option value="7d" data-i18n="time_7d">Last 7 days</option>
-              <option value="30d" data-i18n="time_30d">Last 30 days</option>
-            </select>
+          <button id="toggleMapBtn" class="chip" aria-pressed="false">🗺️ Show/Hide Map</button>
+
+          <!-- Active filters chip row -->
+          <div id="activeFilters" class="active-filters" aria-live="polite"></div>
+
+          <!-- Location search (custom suggestions only) -->
+          <div class="search-wrap">
+            <input id="search" type="search"
+                   placeholder="Type a location… e.g., United States, Europe, Texas, Kyiv"
+                   aria-label="Search by continent / region / country / state / city / territory" />
+            <div id="searchSuggestions" class="suggestions" role="listbox" hidden></div>
           </div>
 
-          <div class="controls">
-            <input id="search" type="search" placeholder="Search title/summary" data-i18n-placeholder="search_ph" />
+          <div class="chip-btns">
+            <button id="clearFilters" class="chip" title="Clear all filters">Clear filters</button>
+            <button id="reloadBtn" class="chip" title="Reload data">Reload</button>
           </div>
 
-          <!-- Categories dropdown (checkbox groups) — DEFAULT CLOSED -->
-          <details class="dropdown">
+          <details class="dropdown" id="catDropdown">
             <summary>Categories</summary>
             <div class="dropdown-body">
               <div class="cb-grid" id="categoryGrid"></div>
             </div>
           </details>
 
-          <!-- Tags dropdown (auto from CSV) -->
-          <details class="dropdown">
+          <details class="dropdown" id="tagsDropdown">
             <summary>Tags</summary>
             <div class="dropdown-body">
               <div class="cb-grid" id="tagsGrid"></div>
             </div>
           </details>
-        </div>
 
-        <div id="errorBox" class="error"></div>
-        <div id="busy" class="busy">⏳ <span data-i18n="translating">Translating…</span></div>
-        <div class="hint" data-i18n="hint">Tip: region tabs zoom to visible waypoints; use categories/tags to refine.</div>
+          <div class="footerbar">
+            <div id="statusText">Loading…</div>
+            <div id="countText"></div>
+          </div>
+        </div>
       </div>
 
-      <div class="feed" id="feed"></div>
+      <div class="feed" id="feed" role="feed" aria-live="polite"></div>
     </aside>
   </div>
 
   <script>
-    window.addEventListener('load', () => {
-      /* ======================== CONFIG ======================== */
-      const MAPTILER_KEY = "qspUAdeXjo5iVDMV5uwL";
+    // === Tag styles with emoji
+    const TAG_STYLES={
+      protest:{emoji:'✊',color:'#ef4444'},riot:{emoji:'🪓',color:'#ef4444'},strike:{emoji:'🪧',color:'#f59e0b'},blockade:{emoji:'⛔',color:'#e11d48'},
+      military:{emoji:'🎖️',color:'#475569'},airstrike:{emoji:'✈️',color:'#ef4444'},missile:{emoji:'🚀',color:'#fb923c'},explosion:{emoji:'💥',color:'#f43f5e'},
+      diplomacy:{emoji:'🤝',color:'#16a34a'},election:{emoji:'🗳️',color:'#22c55e'},corruption:{emoji:'💰',color:'#eab308'},
+      trade:{emoji:'🧾',color:'#38bdf8'},inflation:{emoji:'📈',color:'#f59e0b'},banking:{emoji:'🏦',color:'#60a5fa'},
+      flood:{emoji:'🌊',color:'#0ea5e9'},earthquake:{emoji:'🌎',color:'#8b5e3c'},wildfire:{emoji:'🔥',color:'#f97316'},pandemic:{emoji:'🦠',color:'#84cc16'},
+      education:{emoji:'🎓',color:'#6366f1'},religion:{emoji:'🛐',color:'#94a3b8'},
+      storm:{emoji:'⛈️',color:'#38bdf8'},hurricane:{emoji:'🌀',color:'#38bdf8'},tornado:{emoji:'🌪️',color:'#60a5fa'},cyclone:{emoji:'🌀',color:'#38bdf8'},
+      drought:{emoji:'🌞',color:'#f59e0b'},heatwave:{emoji:'🥵',color:'#ef4444'},coldwave:{emoji:'🥶',color:'#60a5fa'},tsunami:{emoji:'🌊',color:'#0ea5e9'},
+      landslide:{emoji:'🏔️',color:'#8b5e3c'},volcano:{emoji:'🌋',color:'#f97316'},aftershock:{emoji:'🔁',color:'#8b5e3c'},
+      fire:{emoji:'🔥',color:'#f97316'},building_collapse:{emoji:'🏚️',color:'#94a3b8'},rescue:{emoji:'🆘',color:'#ef4444'},evacuation:{emoji:'🚨',color:'#ef4444'},
+      chemical_spill:{emoji:'🧪',color:'#eab308'},oil_spill:{emoji:'🛢️',color:'#eab308'},gas_leak:{emoji:'🛢️',color:'#eab308'},
+      radiation:{emoji:'☢️',color:'#facc15'},nuclear_accident:{emoji:'☢️',color:'#facc15'},
+      power_outage:{emoji:'💡',color:'#f59e0b'},blackout:{emoji:'💡',color:'#f59e0b'},telecom:{emoji:'📶',color:'#60a5fa'},internet:{emoji:'🌐',color:'#38bdf8'},
+      censorship:{emoji:'🚫',color:'#e11d48'},cyberattack:{emoji:'🖥️',color:'#6366f1'},ransomware:{emoji:'🧬',color:'#6366f1'},ddos:{emoji:'🌐',color:'#6366f1'},
+      phishing:{emoji:'🎣',color:'#60a5fa'},data_breach:{emoji:'🗄️',color:'#94a3b8'},
+      currency:{emoji:'💱',color:'#60a5fa'},market:{emoji:'📊',color:'#38bdf8'},sanction:{emoji:'🚫',color:'#e11d48'},policy:{emoji:'📜',color:'#94a3b8'},
+      legislation:{emoji:'⚖️',color:'#94a3b8'},court:{emoji:'🏛️',color:'#94a3b8'},arrest:{emoji:'🚔',color:'#ef4444'},police:{emoji:'👮',color:'#94a3b8'},
+      prison:{emoji:'🏚️',color:'#94a3b8'},money_laundering:{emoji:'🧼',color:'#eab308'},
+      crime:{emoji:'🚨',color:'#ef4444'},theft:{emoji:'🧳',color:'#eab308'},looting:{emoji:'🧺',color:'#eab308'},shooting:{emoji:'🔫',color:'#ef4444'},
+      stabbing:{emoji:'🔪',color:'#ef4444'},kidnapping:{emoji:'🧑‍🤝‍🧑',color:'#ef4444'},assassination:{emoji:'🎯',color:'#ef4444'},
+      cartel:{emoji:'💊',color:'#eab308'},gang:{emoji:'🧢',color:'#94a3b8'},terrorism:{emoji:'☠️',color:'#ef4444'},
+      ied:{emoji:'🧨',color:'#ef4444'},drone:{emoji:'🛸',color:'#60a5fa'},uav:{emoji:'🛸',color:'#60a5fa'},mortar:{emoji:'🧨',color:'#ef4444'},
+      artillery:{emoji:'🧨',color:'#ef4444'},shelling:{emoji:'🧨',color:'#ef4444'},small_arms:{emoji:'🔫',color:'#ef4444'},
+      armor:{emoji:'🛡️',color:'#475569'},naval:{emoji:'⚓',color:'#475569'},checkpoint:{emoji:'🚧',color:'#94a3b8'},convoy:{emoji:'🚚',color:'#94a3b8'},
+      aviation:{emoji:'✈️',color:'#60a5fa'},airline:{emoji:'✈️',color:'#60a5fa'},airport:{emoji:'🛫',color:'#60a5fa'},
+      maritime:{emoji:'🚢',color:'#60a5fa'},port:{emoji:'⚓',color:'#60a5fa'},shipping:{emoji:'📦',color:'#60a5fa'},shipping_disruption:{emoji:'📦',color:'#60a5fa'},
+      piracy:{emoji:'🏴‍☠️',color:'#94a3b8'},hijacking:{emoji:'🛑',color:'#ef4444'},hostage:{emoji:'🧑‍🤝‍🧑',color:'#ef4444'},
+      road:{emoji:'🛣️',color:'#94a3b8'},bridge:{emoji:'🌉',color:'#94a3b8'},rail:{emoji:'🚆',color:'#94a3b8'},derailment:{emoji:'🚆',color:'#ef4444'},
+      crash:{emoji:'💥',color:'#f43f5e'},collision:{emoji:'💥',color:'#f43f5e'},
+      energy:{emoji:'⚡',color:'#f59e0b'},power:{emoji:'⚡',color:'#f59e0b'},pipeline:{emoji:'🛢️',color:'#eab308'},
+      refinery:{emoji:'🏭',color:'#eab308'},substation:{emoji:'🔌',color:'#f59e0b'},
+      humanitarian:{emoji:'🤲',color:'#16a34a'},aid:{emoji:'🎒',color:'#16a34a'},refugee:{emoji:'🧳',color:'#94a3b8'},migration:{emoji:'🧭',color:'#94a3b8'},
+      border:{emoji:'🧭',color:'#94a3b8'},negotiation:{emoji:'🫱🏻‍🫲🏽',color:'#16a34a'},security:{emoji:'🛡️',color:'#475569'},
+      government:{emoji:'🏛️',color:'#94a3b8'},announcement:{emoji:'📢',color:'#60a5fa'},official:{emoji:'🟦',color:'#60a5fa'},
+      investigation:{emoji:'🔎',color:'#94a3b8'},intel:{emoji:'🛰️',color:'#60a5fa'},
+      satellite:{emoji:'🛰️',color:'#60a5fa'},space:{emoji:'🚀',color:'#60a5fa'},launch:{emoji:'🚀',color:'#60a5fa'},space_debris:{emoji:'🛰️',color:'#94a3b8'}
+    };
+    const DEFAULT_STYLE={emoji:'📍',color:'#3b82f6'};
 
-      // Free translation via MyMemory
-      const TRANSLATE_PROVIDER = "mymemory";
-      const MM_BASE = "https://api.mymemory.translated.net/get";
-      const MM_BATCH_SIZE = 25;
-      const MM_MAX_CHARS = 1200;
-      const MM_DELAY_MS = 200;
-      const MM_RETRIES = 3;
-      const MM_BACKOFF_BASE_MS = 400;
-      let mmWarnedOnce = false;
+    // Theme groups
+    const LEGEND_GROUPS={
+      politics:["protest","riot","strike","blockade","military","airstrike","missile","explosion","diplomacy","election","corruption","government","sanction","trade","negotiation","policy","security","legislation","court"],
+      conflict:["protest","riot","strike","blockade","military","airstrike","missile","explosion","mortar","artillery","shelling","small_arms","armor","naval","drone","uav","ied","terrorism","checkpoint","convoy"],
+      economics:["trade","inflation","banking","currency","market","sanction","energy","power","pipeline","refinery"],
+      disasters:["flood","earthquake","wildfire","pandemic","storm","drought","heatwave","hurricane","tornado","cyclone","tsunami","landslide","volcano","aftershock","blizzard"],
+      society:["education","religion","humanitarian","aid","migration","refugee","crime","police","arrest"]
+    };
 
-      const LANGS = ["en","zh","hi","es","ar"];
-      const LANG_ALIASES = { en:"en", zh:"zh-CN", hi:"hi", es:"es", ar:"ar" };
-      let currentLang = "en";
+    const state={
+      data:[],
+      theme:'all',
+      region:'all',
+      query:'',
+      location:'',
+      activeTags:new Set(),
+      activeCats:new Set(),
+      lang:'en',
+      lastLoaded:null,
+      _pendingRegionZoom:false,
+      _pendingSearchZoom:false
+    };
 
-      // Tag styles (action/event oriented)
-      const TAG_STYLES = {
-        protest:{emoji:'✊',color:'#ef4444'}, riot:{emoji:'🪓',color:'#ef4444'},
-        strike:{emoji:'🪧',color:'#f59e0b'}, blockade:{emoji:'⛔',color:'#e11d48'},
-        checkpoint:{emoji:'🧭',color:'#94a3b8'}, border:{emoji:'🚧',color:'#d97706'},
-        incursion:{emoji:'🪖',color:'#64748b'}, military:{emoji:'🎖️',color:'#475569'},
-        artillery:{emoji:'🎯',color:'#f43f5e'}, airstrike:{emoji:'✈️',color:'#ef4444'},
-        shelling:{emoji:'💣',color:'#f43f5e'}, missile:{emoji:'🚀',color:'#fb923c'},
-        drone:{emoji:'🛸',color:'#a78bfa'}, explosion:{emoji:'💥',color:'#f43f5e'},
-        security:{emoji:'🛡️',color:'#60a5fa'}, kidnapping:{emoji:'🕳️',color:'#475569'},
-        assassination:{emoji:'🎯',color:'#ef4444'}, hostage:{emoji:'🪢',color:'#ef4444'},
-        cyber:{emoji:'🖥️',color:'#14b8a6'}, disinformation:{emoji:'🧩',color:'#8b5cf6'},
-        censorship:{emoji:'🚫',color:'#ef4444'},
-        diplomacy:{emoji:'🤝',color:'#16a34a'}, negotiation:{emoji:'🗣️',color:'#16a34a'},
-        ceasefire:{emoji:'🕊️',color:'#60a5fa'}, election:{emoji:'🗳️',color:'#22c55e'},
-        politics:{emoji:'🏛️',color:'#64748b'}, corruption:{emoji:'💰',color:'#eab308'},
-        sanction:{emoji:'💱',color:'#0ea5e9'}, trade:{emoji:'🧾',color:'#38bdf8'},
-        export:{emoji:'📤',color:'#38bdf8'}, import:{emoji:'📥',color:'#38bdf8'},
-        inflation:{emoji:'📈',color:'#f59e0b'}, currency:{emoji:'💱',color:'#06b6d4'},
-        banking:{emoji:'🏦',color:'#60a5fa'}, market:{emoji:'🧮',color:'#8b5cf6'},
-        debt:{emoji:'🧾',color:'#e11d48'},
-        outage:{emoji:'📴',color:'#64748b'}, power:{emoji:'⚡',color:'#facc15'},
-        internet:{emoji:'🌐',color:'#22c55e'}, communications:{emoji:'📡',color:'#8b5cf6'},
-        energy:{emoji:'🔌',color:'#f59e0b'}, oil:{emoji:'🛢️',color:'#6b7280'},
-        gas:{emoji:'🧯',color:'#ef4444'}, pipeline:{emoji:'🧵',color:'#94a3b8'},
-        humanitarian:{emoji:'🎗️',color:'#16a34a'}, aid:{emoji:'📦',color:'#10b981'},
-        evacuation:{emoji:'🚌',color:'#f59e0b'}, displacement:{emoji:'🚶',color:'#10b981'},
-        medical:{emoji:'🏥',color:'#e84393'}, disease:{emoji:'🧫',color:'#a3e635'},
-        pandemic:{emoji:'🦠',color:'#84cc16'},
-        flood:{emoji:'🌊',color:'#0ea5e9'}, earthquake:{emoji:'🌎',color:'#8b5e3c'},
-        wildfire:{emoji:'🔥',color:'#f97316'}, volcano:{emoji:'🌋',color:'#f97316'},
-        tsunami:{emoji:'🌊',color:'#06b6d4'}, landslide:{emoji:'⛰️',color:'#a16207'},
-        storm:{emoji:'⛈️',color:'#64748b'}, hurricane:{emoji:'🌀',color:'#38bdf8'},
-        tornado:{emoji:'🌪️',color:'#6b7280'}, drought:{emoji:'🏜️',color:'#d97706'},
-        heatwave:{emoji:'🌡️',color:'#ef4444'}, water:{emoji:'🚰',color:'#38bdf8'},
-        rail:{emoji:'🚆',color:'#9ca3af'}, aviation:{emoji:'✈️',color:'#2563eb'},
-        port:{emoji:'⚓',color:'#334155'}, maritime:{emoji:'⚓',color:'#334155'},
-        airport:{emoji:'🛫',color:'#2563eb'}, smuggling:{emoji:'📦',color:'#a8a29e'},
-        education:{emoji:'🎓',color:'#6366f1'}, religion:{emoji:'🛐',color:'#94a3b8'}
-      };
-      const DEFAULT_STYLE = { emoji:'📍', color:'#3b82f6' };
+    // Elements
+    const feedEl=document.getElementById('feed');
+    const tagsGrid=document.getElementById('tagsGrid');
+    const categoryGrid=document.getElementById('categoryGrid');
+    const statusText=document.getElementById('statusText');
+    const countText=document.getElementById('countText');
+    const activeFiltersEl=document.getElementById('activeFilters');
 
-      const LEGEND_GROUPS = {
-        "Conflict": ["protest","riot","strike","blockade","checkpoint","border","incursion","military","artillery","airstrike","shelling","missile","drone","explosion","security","kidnapping","assassination","hostage"],
-        "Politics & Diplomacy": ["diplomacy","negotiation","ceasefire","election","politics","corruption"],
-        "Economy": ["sanction","trade","export","import","inflation","currency","banking","market","debt","energy","oil","gas","pipeline"],
-        "Infrastructure & Utilities": ["outage","power","internet","communications"],
-        "Cyber & Info": ["cyber","disinformation","censorship"],
-        "Humanitarian": ["humanitarian","aid","evacuation","displacement"],
-        "Health": ["medical","disease","pandemic"],
-        "Environment": ["flood","earthquake","wildfire","volcano","tsunami","landslide","storm","hurricane","tornado","drought","heatwave","water"],
-        "Transportation & Logistics": ["rail","aviation","port","maritime","airport","smuggling"],
-        "Society": ["education","religion"]
-      };
-
-      const CATEGORY_LIST = Object.keys(LEGEND_GROUPS);
-
-      const I18N = {
-        en:{title:"Live Incident Map",language:"Language",tab_all:"All",tab_ua_ru:"Ukraine / Russia",tab_il_ps:"Israel / Palestine",tab_ve:"Venezuela",time_all:"All time",time_24h:"Last 24 hours",time_7d:"Last 7 days",time_30d:"Last 30 days",search_ph:"Search title/summary",hint:"Tip: region tabs zoom to visible waypoints; use categories/tags to refine.",no_results:"No incidents match the current view/filters.",open_source:"Open source ↗",confidence:"Confidence",translating:"Translating…"},
-        zh:{title:"事件地图",language:"语言",tab_all:"全部",tab_ua_ru:"乌克兰 / 俄罗斯",tab_il_ps:"以色列 / 巴勒斯坦",tab_ve:"委内瑞拉",time_all:"全部时间",time_24h:"过去24小时",time_7d:"过去7天",time_30d:"过去30天",search_ph:"搜索 标题/摘要",hint:"提示：选择区域标签以缩放；使用类别/标签进一步筛选。",no_results:"没有符合当前视图/筛选条件的事件。",open_source:"来源 ↗",confidence:"可信度",translating:"正在翻译…"},
-        hi:{title:"लाइव घटना मानचित्र",language:"भाषा",tab_all:"सभी",tab_ua_ru:"यूक्रेन / रूस",tab_il_ps:"इज़राइल / फ़िलिस्तीन",tab_ve:"वेनेज़ुएला",time_all:"सभी समय",time_24h:"पिछले 24 घंटे",time_7d:"पिछले 7 दिन",time_30d:"पिछले 30 दिन",search_ph:"शीर्षक/सारांश खोजें",hint:"संकेत: क्षेत्र टैब ज़ूम करता है; श्रेणी/टैग से फ़िल्टर करें।",no_results:"वर्तमान दृश्य/फ़िल्टर से कोई घटना मेल नहीं खाती।",open_source:"स्रोत ↗",confidence:"विश्वसनीयता",translating:"अनुवाद हो रहा है…"},
-        es:{title:"Mapa de Incidentes",language:"Idioma",tab_all:"Todos",tab_ua_ru:"Ucrania / Rusia",tab_il_ps:"Israel / Palestina",tab_ve:"Venezuela",time_all:"Todo el tiempo",time_24h:"Últimas 24 horas",time_7d:"Últimos 7 días",time_30d:"Últimos 30 días",search_ph:"Buscar título/resumen",hint:"Consejo: las pestañas de región acercan a los puntos; usa categorías/etiquetas para refinar.",no_results:"No hay incidentes que coincidan con la vista/filtros.",open_source:"Fuente ↗",confidence:"Confianza",translating:"Traduciendo…"},
-        ar:{title:"خريطة الحوادث المباشرة",language:"اللغة",tab_all:"الكل",tab_ua_ru:"أوكرانيا / روسيا",tab_il_ps:"إسرائيل / فلسطين",tab_ve:"فنزويلا",time_all:"كل الوقت",time_24h:"آخر 24 ساعة",time_7d:"آخر 7 أيام",time_30d:"آخر 30 يومًا",search_ph:"ابحث في العنوان/الملخص",hint:"تلميح: تبويبات المناطق تُكبّر النقاط الظاهرة؛ استخدم الفئات/الوسوم للتصفية.",no_results:"لا توجد حوادث مطابقة للعرض/المرشحات الحالية.",open_source:"المصدر ↗",confidence:"الثقة",translating:"…جاري الترجمة"}
-      };
-
-      function applyI18n(){
-        const t = I18N[currentLang] || I18N.en;
-        document.querySelectorAll("[data-i18n]").forEach(el => {
-          const key = el.getAttribute("data-i18n");
-          if (t[key]) el.textContent = t[key];
-        });
-        document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
-          const key = el.getAttribute("data-i18n-placeholder");
-          if (t[key]) el.setAttribute("placeholder", t[key]);
-        });
-        renderCategoryCheckboxes();
-        renderTagCheckboxes(state.data);
-        render();
-        if (MAPTILER_KEY) switchLocalizedBasemap();
-      }
-
-      /* -------------------- MAP LAYERS -------------------- */
-      const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
-      const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Data © OSM, SRTM | Tiles © OpenTopoMap (CC-BY-SA)' });
-      const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar, GeoEye, USDA, USGS, AeroGRID, IGN, GIS User Community' });
-
-      let mtStreets=null, mtTopo=null, mtSat=null;
-      function makeMapTilerLayers(lang){
-        const p = `?key=${MAPTILER_KEY}&language=${lang}`;
-        mtStreets = L.tileLayer(`https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png${p}`, { maxZoom:19, attribution:'&copy; OpenMapTiles & OSM, © MapTiler' });
-        mtTopo    = L.tileLayer(`https://api.maptiler.com/maps/topo-v2/256/{z}/{x}/{y}.png${p}`,    { maxZoom:19, attribution:'&copy; OpenMapTiles & OSM, © MapTiler' });
-        mtSat     = L.tileLayer(`https://api.maptiler.com/tiles/satellite/256/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`, { maxZoom:19, attribution:'Imagery © MapTiler & partners' });
-      }
-
-      // Re-enable vertical clamping; keep infinite E/W by using very wide longitudes.
-      const map = L.map('map', {
-        center:[25,15],
-        zoom:2,
-        minZoom:2,
-        maxZoom:16,
-        worldCopyJump:true,
-        maxBounds: [[-85, -100000], [85, 100000]],
-        maxBoundsViscosity: 1.0,
-        layers:[]
-      });
-
-      let currentBase = null;
-      let layersControl = null;
-
-      function buildLayersControl(useMapTiler){
-        if (layersControl) { map.removeControl(layersControl); layersControl = null; }
-        let bases={};
-        if (useMapTiler){
-          bases = { "Streets (Localized)": mtStreets, "Topo (Localized)": mtTopo, "Satellite": mtSat };
-        } else {
-          bases = { "OpenStreetMap (Standard)": osmStd, "OpenTopoMap (Terrain)": openTopo, "Esri Satellite": esriSat };
-        }
-        layersControl = L.control.layers(bases, null, { position:'topright', collapsed:true }).addTo(map);
-        const first = Object.values(bases)[0];
-        if (currentBase) map.removeLayer(currentBase);
-        currentBase = first;
-        currentBase.addTo(map);
-      }
-
-      function switchLocalizedBasemap(){
-        const prevZoom = map.getZoom(), prevCenter = map.getCenter();
-        makeMapTilerLayers(currentLang);
-        buildLayersControl(true);
-        map.setView(prevCenter, prevZoom);
-      }
-
-      let usingMapTiler = false;
-      if (MAPTILER_KEY){
-        try {
-          switchLocalizedBasemap();
-          usingMapTiler = true;
-          const onTileError = () => {
-            if (!usingMapTiler) return;
-            usingMapTiler = false;
-            buildLayersControl(false);
-          };
-          [mtStreets, mtTopo, mtSat].forEach(l => l.on('tileerror', onTileError));
-        } catch(e){
-          buildLayersControl(false);
-        }
-      } else {
-        buildLayersControl(false);
-      }
-
-      // Clusters + lookup
-      const clusters = L.markerClusterGroup({
-        showCoverageOnHover:false,
-        spiderfyOnEveryZoom:true,
-        maxClusterRadius:48,
-        disableClusteringAtZoom: 11
-      }).addTo(map);
-      const markersById = new Map();
-
-      /* -------------------- STATE -------------------- */
-      const state = {
-        data: [],
-        activeTags:new Set(),
-        activeCats:new Set(),
-        timeWindow:'all',
-        query:'',
-        regionKey:'all'
-      };
-
-      const REGION_BOUNDS = {
-        all: null,
-        ua_ru: L.latLngBounds([[44.0, 22.0],[70.0, 150.0]]),
-        il_ps: L.latLngBounds([[29.0, 33.0],[34.7, 36.0]]),
-        ve:    L.latLngBounds([[0.0, -74.0],[13.0, -59.0]])
-      };
-
-      function itemsInRegion(key){
-        return state.data.filter(i => {
-          const inReg = key === 'all' ? true :
-            (Number.isFinite(i.lat) && Number.isFinite(i.lng) && REGION_BOUNDS[key].contains([i.lat, i.lng]));
-          if (!inReg) return false;
-          return itemMatchesFilters(i);
-        });
-      }
-
-      function fitToRegion(key){
-        const list = itemsInRegion(key);
-        if (list.length > 0){
-          const b = L.latLngBounds(list.map(i => [i.lat, i.lng]));
-          map.fitBounds(b, { padding:[40,40], maxZoom: 9 });
-        } else if (key !== 'all') {
-          map.fitBounds(REGION_BOUNDS[key], { padding:[60,60], maxZoom: 5 });
-        } else {
-          map.setView([25, 15], 2);
-        }
-      }
-
-      /* --------- UI refs --------- */
-      const regionTabs = document.getElementById('regionTabs');
-      const categoryGrid = document.getElementById('categoryGrid');
-      const tagsGrid = document.getElementById('tagsGrid');
-      const feedEl = document.getElementById('feed');
-      const timeSel = document.getElementById('timeWindow');
-      const searchEl = document.getElementById('search');
-      const errorBox = document.getElementById('errorBox');
-      const busyEl = document.getElementById('busy');
-      const langSel = document.getElementById('langSel');
-
-      /* --------- Listeners --------- */
-      regionTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('.tab'); if (!btn) return;
-        regionTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        btn.classList.add('active');
-        state.regionKey = btn.dataset.key;
-        fitToRegion(state.regionKey);
-        render();
-      });
-
-      timeSel.addEventListener('change', () => { state.timeWindow = timeSel.value; fitToRegion(state.regionKey); render(); });
-      searchEl.addEventListener('input', () => { state.query = searchEl.value.toLowerCase(); fitToRegion(state.regionKey); render(); });
-      map.on('moveend', render);
-
-      langSel.addEventListener('change', async () => {
-        const value = langSel.value;
-        currentLang = LANGS.includes(value) ? value : 'en';
-        applyI18n();
-        if (TRANSLATE_PROVIDER && currentLang !== 'en') {
-          await translateAllItems();
-        } else {
-          render();
-        }
-      });
-
-      function showError(msg){ errorBox.style.display='block'; errorBox.textContent=msg; }
-      function clearError(){ errorBox.style.display='none'; errorBox.textContent=''; }
-      function showBusy(on){ busyEl.style.display = on ? 'flex' : 'none'; }
-      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-      /* -------------------- TRANSLATION (MyMemory) -------------------- */
-      function detectLangFromScript(text){
-        if (!text) return 'en';
-        for (const ch of text){
-          const code = ch.codePointAt(0);
-          if ((code>=0x4E00 && code<=0x9FFF) || (code>=0x3400 && code<=0x4DBF)) return 'zh-CN';
-          if (code>=0x0600 && code<=0x06FF) return 'ar';
-          if (code>=0x0900 && code<=0x097F) return 'hi';
-        }
-        const accented = (text.match(/[áéíóúñüÁÉÍÓÚÑÜ]/g)||[]).length;
-        if (accented >= 2) return 'es';
-        return 'en';
-      }
-
-      const transCache = {
-        get(k){ try{ return localStorage.getItem(k); }catch{ return null; } },
-        set(k,v){ try{ localStorage.setItem(k,v); }catch{} }
-      };
-      const SEP_REC = "🧿🔗🧿";
-      function cacheKey(provider, target, text){ return `tr:${provider}:${target}:${text}`; }
-
-      async function myMemoryRequest(q, src, tgt){
-        const url = `${MM_BASE}?q=${encodeURIComponent(q)}&langpair=${encodeURIComponent(src)}|${encodeURIComponent(tgt)}`;
-        let attempt = 0;
-        while (attempt <= MM_RETRIES){
-          try{
-            const res = await fetch(url, { method:'GET', mode:'cors', cache:'no-store' });
-            if (!res.ok){
-              if ((res.status===429 || res.status===503) && attempt < MM_RETRIES){
-                attempt++;
-                await sleep(MM_BACKOFF_BASE_MS * Math.pow(2, attempt-1));
-                continue;
-              }
-              throw new Error(`HTTP ${res.status}`);
-            }
-            const data = await res.json();
-            const out = (data && data.responseData && data.responseData.translatedText) ? data.responseData.translatedText : q;
-            return out;
-          } catch (e){
-            if (attempt < MM_RETRIES){
-              attempt++;
-              await sleep(MM_BACKOFF_BASE_MS * Math.pow(2, attempt-1));
-              continue;
-            }
-            if (!mmWarnedOnce){
-              showError('Translation failed (free API busy). Showing original text.');
-              mmWarnedOnce = true;
-            }
-            return q;
-          }
-        }
-        return q;
-      }
-
-      async function translateList(texts, target){
-        const tgt = LANG_ALIASES[target] || 'en';
-        const nonEmpty = texts.find(t => (t||'').trim().length);
-        const srcGuess = detectLangFromScript(nonEmpty || '');
-
-        const batches = [];
-        let cur = [];
-        let chars = 0;
-        for (const s of texts){
-          const str = (s||'').trim();
-          const extraSep = cur.length ? SEP_REC.length : 0;
-          if (cur.length >= MM_BATCH_SIZE || (chars + str.length + extraSep) > MM_MAX_CHARS){
-            batches.push(cur.slice());
-            cur = [];
-            chars = 0;
-          }
-          cur.push(str);
-          chars += str.length + extraSep;
-        }
-        if (cur.length) batches.push(cur);
-
-        const results = [];
-        for (const b of batches){
-          const src = detectLangFromScript(b.find(t => t)||'') || srcGuess;
-          if ((src || 'en') === tgt){
-            results.push(...b);
-          } else {
-            const joined = b.join(SEP_REC);
-            const translated = await myMemoryRequest(joined, src, tgt);
-            const parts = translated.split(SEP_REC);
-            if (parts.length === b.length){
-              results.push(...parts);
-            } else {
-              for (const single of b){
-                const k = cacheKey('mm', tgt, single);
-                const cached = transCache.get(k);
-                if (cached){ results.push(cached); continue; }
-                const one = await myMemoryRequest(single, src, tgt);
-                transCache.set(k, one);
-                results.push(one);
-              }
-            }
-          }
-          if (MM_DELAY_MS) await sleep(MM_DELAY_MS);
-        }
-        return results;
-      }
-
-      async function translateAllItems(){
-        if (!state.data.length || currentLang==='en') { render(); return; }
-
-        showBusy(true);
-        try{
-          const need = state.data.filter(i => !(i._t && i._t[currentLang] && i._t[currentLang].done));
-          if (!need.length){ render(); return; }
-
-          const titles = need.map(i => (i.title||'').trim());
-          const sums   = need.map(i => (i.summary||'').trim());
-
-          const [titlesOut, sumsOut] = await Promise.all([
-            translateList(titles, currentLang),
-            translateList(sums, currentLang)
-          ]);
-
-          for (let k=0; k<need.length; k++){
-            const row = need[k];
-            row._t = row._t || {};
-            row._t[currentLang] = {
-              title: titlesOut[k] || row.title || '',
-              summary: sumsOut[k] || row.summary || '',
-              done: true
-            };
-          }
-        } finally {
-          showBusy(false);
-          render();
-        }
-      }
-
-      /* -------------------- FILTER LOGIC -------------------- */
-      function withinTimeWindow(iso, window) {
-        if (!iso) return false;
-        if (window === "all") return true;
-        const d = new Date(iso); if (Number.isNaN(d.getTime())) return false;
-        const now = new Date(); const diff = now - d; const day = 86400000;
-        if (window === "24h") return diff <= day;
-        if (window === "7d") return diff <= 7*day;
-        if (window === "30d") return diff <= 30*day;
-        return true;
-      }
-
-      function inBounds(lat, lng, bounds) { return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]); }
-      function matchesRegion(i){ if (state.regionKey === 'all') return true; const b = REGION_BOUNDS[state.regionKey]; return Number.isFinite(i.lat) && Number.isFinite(i.lng) && b.contains([i.lat, i.lng]); }
-
-      function itemMatchesFilters(i){
-        const matchesTime = withinTimeWindow(i.occurred_at, state.timeWindow);
-        const matchesQuery = !state.query
-          || (i.title && i.title.toLowerCase().includes(state.query))
-          || (i.summary && i.summary.toLowerCase().includes(state.query));
-
-        // Category filter: if any categories checked, item must overlap union of those groups
-        let matchesCats = true;
-        if (state.activeCats.size > 0){
-          const itemTags = new Set((i.tags||[]).map(t => (t||'').toLowerCase()));
-          matchesCats = false;
-          const union = new Set();
-          for (const g of state.activeCats){
-            const arr = LEGEND_GROUPS[g] || [];
-            arr.forEach(t => union.add(t));
-          }
-          for (const t of union){ if (itemTags.has(t)) { matchesCats = true; break; } }
-        }
-
-        // Specific tag checkboxes: if any checked, require overlap
-        const matchesTags = state.activeTags.size === 0
-          ? true
-          : (i.tags || []).some(tt => state.activeTags.has((tt||'').toLowerCase()));
-
-        return matchesTime && matchesQuery && matchesCats && matchesTags;
-      }
-
-      /* -------------------- UI BUILDERS -------------------- */
-      function renderCategoryCheckboxes(){
-        categoryGrid.innerHTML = '';
-        CATEGORY_LIST.forEach(cat => {
-          const wrap = document.createElement('label');
-          wrap.className = 'cb';
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = cat;
-          cb.checked = state.activeCats.has(cat);
-          cb.addEventListener('change', () => {
-            if (cb.checked) state.activeCats.add(cat); else state.activeCats.delete(cat);
-            fitToRegion(state.regionKey);
-            render();
-          });
-          const txt = document.createElement('span');
-          txt.textContent = cat;
-          wrap.appendChild(cb); wrap.appendChild(txt);
-          categoryGrid.appendChild(wrap);
-        });
-      }
-
-      function renderTagCheckboxes(data){
-        const tagsSet = new Set();
-        data.forEach(i => (i.tags || []).forEach(t => tagsSet.add((t||'').trim().toLowerCase())));
-        const tags = Array.from(tagsSet).filter(Boolean).sort();
-
-        tagsGrid.innerHTML = '';
-        tags.forEach(tag => {
-          const wrap = document.createElement('label');
-          wrap.className = 'cb';
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = tag;
-          cb.checked = state.activeTags.has(tag);
-          cb.addEventListener('change', () => {
-            if (cb.checked) state.activeTags.add(tag); else state.activeTags.delete(tag);
-            fitToRegion(state.regionKey);
-            render();
-          });
-          const txt = document.createElement('span');
-          txt.textContent = tag;
-          wrap.appendChild(cb); wrap.appendChild(txt);
-          tagsGrid.appendChild(wrap);
-        });
-      }
-
-      function getTitle(i){
-        if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].title) return i.title || '';
-        return i._t[currentLang].title || i.title || '';
-      }
-      function getSummary(i){
-        if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].summary) return i.summary || '';
-        return i._t[currentLang].summary || i.summary || '';
-      }
-
-      function makeIcon(primaryTag){
-        const key = (primaryTag || '').toLowerCase();
-        const style = TAG_STYLES[key] || DEFAULT_STYLE;
-        const html = `<div class="pin" style="background:${style.color}">${style.emoji}</div><div class="dot"></div>`;
-        return L.divIcon({ className:'tag-pin', html, iconSize:[28,34], iconAnchor:[14,30], popupAnchor:[0,-28] });
-      }
-
-      /* -------------------- RENDER -------------------- */
-      function render() {
-        const t = I18N[currentLang] || I18N.en;
-        const viewBounds = map.getBounds();
-        const items = state.data.filter(i => {
-          if (!matchesRegion(i)) return false;
-          if (!itemMatchesFilters(i)) return false;
-          return inBounds(i.lat, i.lng, viewBounds);
-        });
-
-        clusters.clearLayers();
-        markersById.clear();
-
-        items.forEach(i => {
-          const primaryTag = ((i.tags||[])[0] || '').toLowerCase();
-          const m = L.marker([i.lat, i.lng], { icon: makeIcon(primaryTag) });
-
-          const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
-          const tagStr = (i.tags || []).join(', ');
-          const conf = (i.confidence ?? '') !== '' ? `${t.confidence}: ${i.confidence}` : '';
-          const title = getTitle(i) || '(no title)';
-          const summary = getSummary(i);
-          const src = i.sources && i.sources[0] ? `<br><a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '';
-          m.bindPopup(`<b>${title}</b><br>${time}<br>${summary}<br>${tagStr}<br>${conf}${src}`);
-
-          clusters.addLayer(m);
-          markersById.set(i.id, m);
-        });
-
-        feedEl.innerHTML = '';
-        if (items.length === 0) {
-          const empty = document.createElement('div');
-          empty.className = 'card';
-          empty.innerHTML = `<div class="meta">${t.no_results}</div>`;
-          feedEl.appendChild(empty);
-        } else {
-          items.forEach(i => {
-            const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
-            const tconf = (i.confidence ?? '') !== '' ? `<span>• ${t.confidence} ${i.confidence}</span>` : '';
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-              <h3>${getTitle(i) || '(no title)'}</h3>
-              <div class="meta">
-                <span>${time}</span>
-                ${ (i.tags||[]).length ? `<span>• ${(i.tags||[]).join(', ')}</span>` : '' }
-                ${ tconf }
-              </div>
-              ${ getSummary(i) ? `<p style="margin:6px 0 10px; line-height:1.45;">${getSummary(i)}</p>` : '' }
-              <div class="source">
-                ${ i.sources && i.sources[0] ? `<a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '' }
-              </div>
-            `;
-            card.addEventListener('click', () => {
-              const m = markersById.get(i.id);
-              if (m) {
-                const targetZoom = Math.max(map.getZoom(), 9);
-                map.flyTo(m.getLatLng(), targetZoom, { duration: 0.6 });
-                setTimeout(() => m.openPopup(), 650);
-              } else {
-                map.flyTo([i.lat, i.lng], 9, { duration: 0.6 });
-              }
-            });
-            feedEl.appendChild(card);
-          });
-        }
-      }
-
-      /* -------------------- CSV LOADER -------------------- */
-      const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7bipbinJbUpjJN2nG8Yr0jb6fNoO8PYxTDvIyRplRvoNQcN1oyvXgTJZ-P30pDe-OD7JJ-1odsj3J/pub?output=csv";
-
-      async function loadCSV() {
-        try {
-          clearError();
-          const res = await fetch(SHEET_CSV_URL, { mode: 'cors', cache: 'no-store' });
-          if (!res.ok) { showError(`CSV HTTP error: ${res.status} ${res.statusText}`); return; }
-          const csvText = await res.text();
-          const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-          const rows = parsed.data.filter(r => r.id);
-
-          state.data = rows.map(r => ({
-            id: String(r.id),
-            title: r.title,
-            summary: r.summary,
-            tags: (r.tags || '').split(',').map(t => t.trim()).filter(Boolean),
-            occurred_at: r.occurred_at,
-            lat: parseFloat(r.lat),
-            lng: parseFloat(r.lng),
-            confidence: r.confidence ? parseFloat(r.confidence) : null,
-            sources: r.source_url ? [{ url: r.source_url }] : [],
-            _t: {}
-          }))
-          .filter(i => Number.isFinite(i.lat) && Number.isFinite(i.lng))
-          .sort((a,b) => (new Date(b.occurred_at).getTime()||0) - (new Date(a.occurred_at).getTime()||0));
-
-          renderTagCheckboxes(state.data);
-          fitToRegion(state.regionKey);
-          render();
-
-          if (currentLang !== 'en' && TRANSLATE_PROVIDER) await translateAllItems();
-        } catch (err) {
-          console.error(err);
-          showError("Failed to fetch CSV (network/CORS). Ensure the sheet is 'Published to the web' as CSV.");
-        }
-      }
-
-      /* -------------------- INIT -------------------- */
-      applyI18n();
-      loadCSV();
-      setInterval(loadCSV, 5 * 60 * 1000);
+    // === Map
+    const map=L.map('map',{
+      center:[25,15], zoom:2, minZoom:2, maxZoom:16, worldCopyJump:true,
+      maxBounds:[[-85,-100000],[85,100000]], maxBoundsViscosity:1.0,
+      layers:[L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19})]
     });
+    const clusters=L.markerClusterGroup({ showCoverageOnHover:false, chunkedLoading:true }).addTo(map);
+
+    function makeIcon(tag){
+      const st=TAG_STYLES[tag?.toLowerCase?.()]||DEFAULT_STYLE;
+      const html=`<div class="pin" style="background:${st.color}">${st.emoji}</div><div class="dot"></div>`;
+      return L.divIcon({className:'tag-pin',html,iconSize:[28,34],iconAnchor:[14,30]});
+    }
+
+    // Tabs
+    function setTabsActive(listEl, button){
+      [...listEl.querySelectorAll('.tab')].forEach(b=>b.setAttribute('aria-selected','false'));
+      button.setAttribute('aria-selected','true');
+    }
+    document.getElementById('themeTabs').addEventListener('click',e=>{
+      const t=e.target.closest('.tab'); if(!t) return;
+      setTabsActive(document.getElementById('themeTabs'), t);
+      state.theme=t.dataset.theme; render();
+    });
+
+    // ===== Location Search (grouped suggestions + robust matching)
+    const searchEl=document.getElementById('search');
+    const suggestionsEl=document.getElementById('searchSuggestions');
+
+    // Static baseline so suggestions work even before CSV loads
+    const CONTINENTS=['Africa','Asia','Europe','North America','South America','Oceania','Antarctica'];
+    const REGIONS_BASE=[
+      'Middle East','Eastern Europe','Western Europe','Northern Europe','Southern Europe',
+      'Central Asia','South Asia','Southeast Asia','East Asia',
+      'Caucasus','Balkans','Scandinavia','Iberia','Benelux',
+      'Maghreb','Horn of Africa','Sub-Saharan Africa',
+      'Latin America','Caribbean','Gulf','Levant'
+    ];
+
+    // Core states/territories lists (curated; extend as needed)
+    const US_STATES=[ 'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming','District of Columbia' ];
+    const CA_PROV_TERR=[ 'Ontario','Quebec','Nova Scotia','New Brunswick','Manitoba','British Columbia','Prince Edward Island','Saskatchewan','Alberta','Newfoundland and Labrador','Northwest Territories','Yukon','Nunavut' ];
+    const AU_STATES_TERR=[ 'New South Wales','Victoria','Queensland','Western Australia','South Australia','Tasmania','Australian Capital Territory','Northern Territory' ];
+    const IN_STATES_UT=[ 'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Andaman and Nicobar Islands','Chandigarh','Dadra and Nagar Haveli and Daman and Diu','Delhi','Jammu and Kashmir','Ladakh','Lakshadweep','Puducherry' ];
+    const UK_CONSTITUENT=[ 'England','Scotland','Wales','Northern Ireland' ];
+
+    const TYPE_ORDER={continent:0,region:1,country:2,state:3,city:4,territory:5,other:6};
+
+    // Aliases (maps many-to-one normalized labels)
+    const ALIASES = {
+      'united states': ['us','usa','u.s.','u.s','america','united states of america'],
+      'united kingdom': ['uk','u.k.','great britain','britain'],
+      'united arab emirates': ['uae','u.a.e.'],
+      'russia': ['russian federation'],
+      'south korea': ['republic of korea','rok'],
+      'north korea': ['dprk','democratic people\'s republic of korea'],
+      'czechia': ['czech republic'],
+      'palestine': ['state of palestine','palestinian territories','gaza','west bank'],
+      'venezuela': ['bolivarian republic of venezuela']
+    };
+
+    let allLocationOptions = []; // {label,type}
+    let aliasLookup = new Map(); // normalized alias -> normalized canonical label
+
+    function normalize(str){
+      return String(str||'')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/[^a-z0-9]+/g,' ')
+        .trim()
+        .replace(/\s+/g,' ');
+    }
+    function seedAliases(){
+      aliasLookup.clear();
+      for(const [canon, list] of Object.entries(ALIASES)){
+        const nCanon = normalize(canon);
+        aliasLookup.set(nCanon, nCanon);
+        list.forEach(a=>aliasLookup.set(normalize(a), nCanon));
+      }
+    }
+
+    // Build index from static + dataset (countries/capitals/states added separately)
+    function buildBaseIndex(){
+      const tmpMap = new Map(); // normLabel -> {label,type}
+      const add = (label,type)=>{
+        if(!label) return;
+        const keyN = normalize(label);
+        const canon = aliasLookup.get(keyN) || keyN;
+        const existing = tmpMap.get(canon);
+        if(!existing){
+          tmpMap.set(canon,{label:label, type:type});
+        }else{
+          if(TYPE_ORDER[type] < TYPE_ORDER[existing.type]){
+            tmpMap.set(canon,{label:label, type:type});
+          }
+        }
+      };
+
+      // Continents + baseline regions
+      CONTINENTS.forEach(l=>add(l,'continent'));
+      REGIONS_BASE.forEach(l=>add(l,'region'));
+
+      // Dataset-derived
+      state.data.forEach(i=>{
+        add(i.continent,'continent');
+        add(i.region,'region');
+        add(i.country,'country');
+        add(i.state_name,'state');
+        add(i.city,'city');
+      });
+
+      // Curated states/territories
+      US_STATES.forEach(s=>add(s,'state'));
+      CA_PROV_TERR.forEach(s=>add(s,'state'));
+      AU_STATES_TERR.forEach(s=>add(s,'state'));
+      IN_STATES_UT.forEach(s=>add(s,'state'));
+      UK_CONSTITUENT.forEach(s=>add(s,'state'));
+
+      allLocationOptions = [...tmpMap.values()]
+        .sort((a,b)=>{
+          const t = TYPE_ORDER[a.type]-TYPE_ORDER[b.type];
+          if(t!==0) return t;
+          return a.label.localeCompare(b.label);
+        });
+    }
+
+    // Enrich with countries + capitals from RestCountries
+    async function enrichCountries(){
+      try{
+        const res = await fetch('https://restcountries.com/v3.1/all?fields=name,altSpellings,cca2,cca3,capital,region,subregion');
+        if(!res.ok) return;
+        const data = await res.json();
+        const tmpMap = new Map(allLocationOptions.map(o=>[normalize(o.label), o]));
+
+        const add = (label,type)=>{
+          if(!label) return;
+          const keyN = normalize(label);
+          const canon = aliasLookup.get(keyN) || keyN;
+          if(!tmpMap.has(canon)){
+            tmpMap.set(canon,{label:label, type:type});
+          }else{
+            const ex = tmpMap.get(canon);
+            if(TYPE_ORDER[type] < TYPE_ORDER[ex.type]) tmpMap.set(canon,{label:label, type:type});
+          }
+        };
+        const addAlias = (alias, canonLabel)=>{
+          const a=normalize(alias); const c=normalize(canonLabel);
+          aliasLookup.set(a, c);
+        };
+
+        data.forEach(c=>{
+          const countryName = c?.name?.common || c?.name?.official;
+          if(!countryName) return;
+          add(countryName,'country');
+
+          // add aliases (alt spellings + ISO codes)
+          (c.altSpellings||[]).forEach(a=> addAlias(a, countryName));
+          if(c.cca2) addAlias(c.cca2, countryName);
+          if(c.cca3) addAlias(c.cca3, countryName);
+
+          // capital as city
+          if(Array.isArray(c.capital)){
+            c.capital.forEach(cap=> add(cap,'city'));
+          }
+
+          // subregion as region when useful
+          if(c.subregion) add(c.subregion,'region');
+          if(c.region) add(c.region,'continent'); // keeps continent on top
+        });
+
+        allLocationOptions = [...tmpMap.values()]
+          .sort((a,b)=>{
+            const t = TYPE_ORDER[a.type]-TYPE_ORDER[b.type];
+            if(t!==0) return t;
+            return a.label.localeCompare(b.label);
+          });
+      }catch(_e){
+        // continue with base index if fetch fails
+      }
+    }
+
+    function expandQuery(query){
+      const n = normalize(query);
+      if(!n) return [];
+      const canon = aliasLookup.get(n);
+      return canon ? [n, canon] : [n];
+    }
+
+    function filterOptions(query){
+      const qVars = expandQuery(query);
+      if(qVars.length===0){
+        const top=[];
+        top.push(...allLocationOptions.filter(o=>o.type==='continent'));
+        top.push(...allLocationOptions.filter(o=>o.type==='region').slice(0, 12));
+        top.push(...allLocationOptions.filter(o=>o.type==='country').slice(0, 24));
+        return top.slice(0, 60);
+      }
+      const scored=[];
+      for(const o of allLocationOptions){
+        const l = normalize(o.label);
+        let match=false, rank=3;
+        for(const q of qVars){
+          if(l===q){ match=true; rank=Math.min(rank,0); break; }
+          if(l.startsWith(q)){ match=true; rank=Math.min(rank,1); }
+          else if(l.includes(q)){ match=true; rank=Math.min(rank,2); }
+        }
+        if(match) scored.push({o,rank});
+      }
+      scored.sort((a,b)=>{
+        if(a.rank!==b.rank) return a.rank-b.rank;
+        const t = TYPE_ORDER[a.o.type]-TYPE_ORDER[b.o.type];
+        if(t!==0) return t;
+        return a.o.label.localeCompare(b.o.label);
+      });
+      return scored.map(s=>s.o).slice(0, 80);
+    }
+
+    function groupByType(list){
+      const groups = {continent:[], region:[], country:[], state:[], city:[], territory:[], other:[]};
+      list.forEach(o=> (groups[o.type]||groups.other).push(o));
+      return groups;
+    }
+
+    function renderSuggestions(query){
+      const results = filterOptions(query);
+      suggestionsEl.innerHTML='';
+      const groups = groupByType(results);
+      const order = ['continent','region','country','state','city','territory'];
+      let hasAny=false;
+
+      const headerLabel = t=>{
+        switch(t){
+          case 'continent': return 'Continents';
+          case 'region': return 'Regions';
+          case 'country': return 'Countries';
+          case 'state': return 'States';
+          case 'city': return 'Cities';
+          case 'territory': return 'Territories';
+          default: return 'Other';
+        }
+      };
+
+      order.forEach(t=>{
+        const arr=groups[t];
+        if(!arr || !arr.length) return;
+        hasAny=true;
+        const header=document.createElement('div');
+        header.className='suggestion-header';
+        header.textContent=headerLabel(t);
+        suggestionsEl.appendChild(header);
+        arr.forEach(o=>{
+          const item=document.createElement('div');
+          item.className='suggestion-item';
+          item.setAttribute('role','option');
+          item.dataset.value=o.label;
+          item.dataset.type=o.type;
+          item.innerHTML = `${escapeHTML(o.label)} <span style="opacity:.6;font-size:12px;">• ${o.type}</span>`;
+          item.addEventListener('mousedown',(e)=>{ e.preventDefault(); pickSuggestion(o.label); });
+          suggestionsEl.appendChild(item);
+        });
+      });
+
+      if(!hasAny){
+        suggestionsEl.innerHTML = `<div class="suggestion-item" aria-disabled="true">No matches…</div>`;
+      }
+      suggestionsEl.hidden=false;
+      activeSuggestionIndex=-1;
+    }
+
+    // Keyboard support
+    let searchTimer=null;
+    let activeSuggestionIndex=-1;
+
+    searchEl.addEventListener('input', e=>{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(()=>{
+        state.query=(e.target.value||'');
+        renderSuggestions(state.query);
+      }, 80);
+    });
+    searchEl.addEventListener('focus', ()=>{
+      renderSuggestions(searchEl.value||'');
+    });
+    searchEl.addEventListener('blur', ()=>{
+      setTimeout(()=> hideSuggestions(), 120);
+    });
+    searchEl.addEventListener('keydown', e=>{
+      const items=[...suggestionsEl.querySelectorAll('.suggestion-item[role="option"]')];
+      if((e.key==='ArrowDown' || e.key==='ArrowUp') && items.length){
+        e.preventDefault();
+        if(e.key==='ArrowDown') activeSuggestionIndex=(activeSuggestionIndex+1)%items.length;
+        else activeSuggestionIndex=(activeSuggestionIndex-1+items.length)%items.length;
+        items.forEach((el,idx)=> el.setAttribute('aria-selected', String(idx===activeSuggestionIndex)));
+        const el=items[activeSuggestionIndex];
+        if(el){ el.scrollIntoView({block:'nearest'}); }
+      }else if(e.key==='Enter'){
+        const val=(e.target.value||'').trim();
+        if(activeSuggestionIndex>=0 && items[activeSuggestionIndex]){
+          e.preventDefault();
+          pickSuggestion(items[activeSuggestionIndex].dataset.value);
+        }else if(val){
+          applyLocationFilter(val);
+        }
+      }else if(e.key==='Escape'){
+        hideSuggestions();
+      }
+    });
+
+    function hideSuggestions(){
+      suggestionsEl.hidden=true;
+      suggestionsEl.innerHTML='';
+      activeSuggestionIndex=-1;
+    }
+    function pickSuggestion(value){
+      searchEl.value=value;
+      hideSuggestions();
+      applyLocationFilter(value);
+    }
+
+    // ===== NEW: Geocoding bounds (Nominatim) so we can zoom even with no pins
+    const geoCache = new Map(); // normalized query -> L.LatLngBounds
+    async function fetchGeoBounds(query){
+      const key = normalize(query);
+      if(geoCache.has(key)) return geoCache.get(key);
+      try{
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+        const res = await fetch(url, { headers: { 'Accept':'application/json' }});
+        if(!res.ok) return null;
+        const arr = await res.json();
+        const first = Array.isArray(arr) ? arr[0] : null;
+        if(!first || !first.boundingbox) return null;
+        const [south, north, west, east] = first.boundingbox.map(Number);
+        const bounds = L.latLngBounds([ [south, west], [north, east] ]);
+        geoCache.set(key, bounds);
+        return bounds;
+      }catch(_e){
+        return null;
+      }
+    }
+    async function zoomToGeoBounds(query){
+      const bounds = await fetchGeoBounds(query);
+      if(bounds){
+        // ensure map visible
+        const mapEl=document.getElementById('map');
+        if(mapEl.classList.contains('map-hidden')){
+          mapEl.classList.remove('map-hidden');
+          setTimeout(()=>{ map.invalidateSize(); map.flyToBounds(bounds, { padding:[40,40], maxZoom:7 }); }, 220);
+        }else{
+          map.flyToBounds(bounds, { padding:[40,40], maxZoom:7 });
+        }
+      }else{
+        // fallback if no bounds found
+        map.flyTo([25,15], 2);
+      }
+    }
+
+    function applyLocationFilter(value){
+      state.location = value; // keep label as typed/shown
+      state._pendingSearchZoom = true;
+      render();
+      updateActiveFilterChips();
+
+      // ensure map visible on mobile
+      const mapEl=document.getElementById('map');
+      if(mapEl.classList.contains('map-hidden')){
+        mapEl.classList.remove('map-hidden');
+        setTimeout(()=> map.invalidateSize(), 220);
+      }
+
+      // If the current filter produced no pins, zoom to geographic bounds
+      const itemsNow = filteredItems();
+      const hasAnyPins = itemsNow.some(i => Number.isFinite(i.lat) && Number.isFinite(i.lng));
+      if(!hasAnyPins){
+        zoomToGeoBounds(value);
+      }
+    }
+
+    // Language / other controls
+    const mapEl=document.getElementById('map');
+    const toggleBtn=document.getElementById('toggleMapBtn');
+    toggleBtn.addEventListener('click', ()=>{
+      const hidden=mapEl.classList.toggle('map-hidden');
+      toggleBtn.setAttribute('aria-pressed', String(!hidden));
+      setTimeout(()=>{ map.invalidateSize(); }, 220);
+    });
+    document.getElementById('langSel').addEventListener('change', async e=>{
+      state.lang=e.target.value;
+      await translateAll();
+    });
+    document.getElementById('clearFilters').addEventListener('click', ()=>{
+      state.query=''; searchEl.value='';
+      state.location='';
+      state.activeCats.clear(); state.activeTags.clear();
+      document.querySelectorAll('#categoryGrid input[type=checkbox],#tagsGrid input[type=checkbox]').forEach(cb=>cb.checked=false);
+      updateActiveFilterChips();
+      hideSuggestions();
+      render();
+    });
+    document.getElementById('reloadBtn').addEventListener('click', ()=>loadCSV(true));
+
+    // Translation (unchanged)
+    async function translateAll(){
+      if(state.lang==='en'){ render(); return; }
+      const jobs=[];
+      for(const item of state.data){
+        if(!item._t) item._t={};
+        if(item._t[state.lang]) continue;
+        jobs.push((async ()=>{
+          try{
+            const q = encodeURIComponent(item.summary || '');
+            const res=await fetch(`https://api.mymemory.translated.net/get?q=${q}&langpair=en|${state.lang}`);
+            const json=await res.json();
+            const txt=json?.responseData?.translatedText || item.summary || '';
+            item._t[state.lang]={summary:txt};
+          }catch(_err){
+            item._t[state.lang]={summary:item.summary||''};
+          }
+        })());
+      }
+      await Promise.allSettled(jobs);
+      render();
+    }
+
+    function getSummary(i){
+      return (state.lang==='en'||!i._t?.[state.lang]) ? (i.summary||'') : (i._t[state.lang].summary||i.summary||'');
+    }
+    function validCoords(lat,lng){
+      return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180;
+    }
+
+    // Matching logic (aliases & partials)
+    function locationMatchesItem(query, i){
+      if(!query) return true;
+      const qNorm = normalize(query);
+      const canon = aliasLookup.get(qNorm) || qNorm;
+      const fields=[i.continent,i.region,i.country,i.state_name,i.city].map(v=>normalize(v));
+      return fields.some(f=>{
+        if(!f) return false;
+        return f===canon || f.startsWith(canon) || f.includes(canon) ||
+               f===qNorm || f.startsWith(qNorm) || f.includes(qNorm);
+      });
+    }
+
+    // Build dropdowns (unchanged logic)
+    function buildDropdowns(items){
+      const allCats=new Set(), allTags=new Set();
+      state.data.forEach(i=>{
+        (i.categories||[]).forEach(c=> allCats.add(String(c)));
+        (i.tags||[]).forEach(t=> allTags.add(String(t)));
+      });
+
+      categoryGrid.innerHTML=[...allCats].sort().map(c=>{
+        const checked = state.activeCats.has(c) ? 'checked' : '';
+        return `<label class='cb'><input type='checkbox' value="${escapeAttr(c)}" ${checked}>${escapeHTML(c)}</label>`;
+      }).join('');
+
+      tagsGrid.innerHTML=[...allTags].sort().map(t=>{
+        const checked = state.activeTags.has(t) ? 'checked' : '';
+        return `<label class='cb'><input type='checkbox' value="${escapeAttr(t)}" ${checked}>${escapeHTML(t)}</label>`;
+      }).join('');
+
+      categoryGrid.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        cb.onchange = (e)=>{
+          const val=e.target.value;
+          if(e.target.checked) state.activeCats.add(val); else state.activeCats.delete(val);
+          render();
+        };
+      });
+      tagsGrid.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        cb.onchange = (e)=>{
+          const val=e.target.value;
+          if(e.target.checked) state.activeTags.add(val); else state.activeTags.delete(val);
+          render();
+        };
+      });
+    }
+
+    // CSV loader
+    const CSV_URL="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7bipbinJbUpjJN2nG8Yr0jb6fNoO8PYxTDvIyRplRvoNQcN1oyvXgTJZ-P30pDe-OD7JJ-1odsj3J/pub?output=csv";
+    async function loadCSV(isManual=false){
+      try{
+        statusText.textContent = isManual ? 'Reloading…' : 'Loading…';
+        const res=await fetch(CSV_URL, { cache:'no-store' });
+        if(!res.ok){ throw new Error(`HTTP ${res.status}`); }
+        const txt=await res.text();
+        const parsed=Papa.parse(txt,{header:true,skipEmptyLines:true});
+        const rows = Array.isArray(parsed?.data) ? parsed.data : [];
+
+        state.data = rows.map(r=>{
+          const lat = Number(r.lat);
+          const lng = Number(r.lng);
+          return {
+            id: r.id ?? cryptoRandomId(),
+            title: r.title ?? '',
+            summary: r.summary ?? '',
+            tags: splitCSV(r.tags),
+            categories: splitCSV(r.categories),
+            continent: (r.continent || r.continental || '').toString().trim(),
+            region: (r.region || r.area || '').toString().trim(),
+            country: (r.country || '').toString().trim(),
+            state_name: (r.state || r.province || r.state_name || '').toString().trim(),
+            city: (r.city || r.locality || '').toString().trim(),
+            lat: Number.isFinite(lat) ? lat : NaN,
+            lng: Number.isFinite(lng) ? lng : NaN,
+            occurred_at: r.occurred_at || r.time || ''
+          };
+        });
+
+        state.lastLoaded = new Date().toLocaleString(undefined, { hour12:false });
+        statusText.textContent = `Last updated: ${state.lastLoaded}`;
+
+        // (re)build indexes from fresh data then enrich
+        seedAliases();
+        buildBaseIndex();
+        await enrichCountries(); // adds countries + capitals (cities)
+        updateActiveFilterChips();
+        render();
+      }catch(err){
+        console.error(err);
+        statusText.textContent = 'Failed to load';
+        feedEl.innerHTML = `<div class="error">Error loading data. Please try Reload.</div>`;
+        // still provide suggestions baseline
+        seedAliases();
+        buildBaseIndex();
+        await enrichCountries();
+      }
+    }
+
+    function splitCSV(val){
+      return String(val||'')
+        .split(',')
+        .map(s=>s.trim())
+        .filter(Boolean);
+    }
+    function cryptoRandomId(){
+      if(window.crypto?.getRandomValues){
+        const arr=new Uint32Array(2); crypto.getRandomValues(arr);
+        return 'id-'+arr[0].toString(16)+arr[1].toString(16);
+      }
+      return 'id-'+Math.random().toString(16).slice(2);
+    }
+
+    // Escapes
+    function escapeHTML(str){
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+    function escapeAttr(str){
+      return String(str).replaceAll('"','&quot;');
+    }
+
+    // Active chip (location)
+    function updateActiveFilterChips(){
+      const chips=[];
+      if(state.location){
+        chips.push(`
+          <span class="filter-chip" data-key="location">
+            <span>Location: ${escapeHTML(state.location)}</span>
+            <button type="button" aria-label="Remove location filter">×</button>
+          </span>
+        `);
+      }
+      activeFiltersEl.innerHTML = chips.join('');
+      const locChipBtn = activeFiltersEl.querySelector('[data-key="location"] button');
+      if(locChipBtn){
+        locChipBtn.addEventListener('click', ()=>{
+          state.location='';
+          searchEl.value='';
+          render();
+          updateActiveFilterChips();
+        });
+      }
+    }
+
+    // Region label (unchanged)
+    function regionLabel(key){
+      const map = {
+        'ua_ru':'Ukraine / Russia',
+        'il_ps':'Israel / Palestine',
+        've':'Venezuela',
+        'all':'All Regions'
+      };
+      return map[String(key).toLowerCase()] || key;
+    }
+
+    // Render feed + map
+    function filteredItems(){
+      return state.data.filter(i=>{
+        if(state.location && !locationMatchesItem(state.location, i)) return false;
+        if(state.theme!=='all'){
+          const valid=(LEGEND_GROUPS[state.theme]||[]).map(x=>x.toLowerCase());
+          const has=(i.tags||[]).some(t=> valid.includes((t||'').toLowerCase()));
+          if(!has) return false;
+        }
+        if(state.activeCats.size){
+          const set=new Set((i.categories||[]).map(x=>String(x)));
+          for(const c of state.activeCats){ if(!set.has(c)) return false; }
+        }
+        if(state.activeTags.size){
+          const set=new Set((i.tags||[]).map(x=>String(x)));
+          for(const t of state.activeTags){ if(!set.has(t)) return false; }
+        }
+        return true;
+      });
+    }
+
+    function render(){
+      clusters.clearLayers();
+      feedEl.innerHTML='';
+      statusText.textContent = state.lastLoaded ? `Last updated: ${state.lastLoaded}` : 'Ready';
+
+      const items = filteredItems();
+      buildDropdowns(items);
+      countText.textContent = items.length ? `${items.length} result${items.length===1?'':'s'}` : '';
+
+      if(!items.length){
+        feedEl.innerHTML = `<div class="empty">No results. Try a different location or clear filters.</div>`;
+        // If user just applied a location filter and we have no pins, try geocoded bounds
+        if(state._pendingRegionZoom || state._pendingSearchZoom){
+          const hadSearch = state._pendingSearchZoom;
+          state._pendingRegionZoom=false;
+          state._pendingSearchZoom=false;
+          if(hadSearch && state.location){
+            // Try to zoom to the location bounds instead of global
+            zoomToGeoBounds(state.location);
+          }else{
+            map.flyTo([25,15], 2);
+          }
+        }
+        return;
+      }
+
+      const locLatLngs=[];
+      let firstMarker=null;
+
+      for(const i of items){
+        if(validCoords(i.lat, i.lng)){
+          const primary=(i.tags?.[0]||'').toLowerCase();
+          const m=L.marker([i.lat,i.lng], { icon: makeIcon(primary), title: i.title||'Incident' });
+          m.bindPopup(`<b>${escapeHTML(i.title||'')}</b><br>${escapeHTML(getSummary(i))}`);
+          clusters.addLayer(m);
+          i._marker=m;
+          locLatLngs.push([i.lat,i.lng]);
+          if(!firstMarker) firstMarker=m;
+        }
+
+        const card=document.createElement('div');
+        card.className='card';
+        const tagsHTML=(i.tags||[]).map(t=>`<span class="tagpill">${escapeHTML(t)}</span>`).join(' ');
+        const locBits=[i.city,i.state_name,i.country].filter(Boolean).join(', ');
+        const locPill = locBits ? `<span class="tagpill">${escapeHTML(locBits)}</span>` : '';
+        card.innerHTML=`
+          <h3>${escapeHTML(i.title||'Untitled')}</h3>
+          <div class="meta">
+            <span>${escapeHTML(i.occurred_at||'')}</span>
+            ${i.region? `<span class="tagpill">${escapeHTML(regionLabel(i.region))}</span>`:''}
+            ${locPill}
+            ${tagsHTML}
+          </div>
+          <p>${escapeHTML(getSummary(i))}</p>
+        `;
+        card.onclick=()=>{
+          if(validCoords(i.lat,i.lng)){
+            if(mapEl.classList.contains('map-hidden')){
+              mapEl.classList.remove('map-hidden');
+              setTimeout(()=>{ map.invalidateSize(); map.flyTo([i.lat,i.lng],6); i._marker && clusters.zoomToShowLayer(i._marker, ()=>i._marker.openPopup()); }, 220);
+            }else{
+              map.flyTo([i.lat,i.lng],6);
+              i._marker && clusters.zoomToShowLayer(i._marker, ()=>i._marker.openPopup());
+            }
+          }
+        };
+        feedEl.appendChild(card);
+      }
+
+      // Auto-zoom after committed location search:
+      // - If there are pins, fit to their bounds (current behavior)
+      // - Else (handled above) we geocode bounds
+      if(state._pendingRegionZoom || state._pendingSearchZoom){
+        state._pendingRegionZoom=false;
+        const hadSearch = state._pendingSearchZoom;
+        state._pendingSearchZoom=false;
+
+        if(locLatLngs.length===0){
+          if(hadSearch && state.location){
+            zoomToGeoBounds(state.location);
+          }else{
+            map.flyTo([25,15], 2);
+          }
+        }else if(locLatLngs.length===1){
+          const p=L.latLng(locLatLngs[0][0], locLatLngs[0][1]);
+          map.flyTo(p, 6);
+          if(firstMarker){
+            clusters.zoomToShowLayer(firstMarker, ()=>firstMarker.openPopup());
+          }
+        }else{
+          const bounds=L.latLngBounds(locLatLngs.map(ll=>L.latLng(ll[0], ll[1])));
+          if(mapEl.classList.contains('map-hidden')){
+            mapEl.classList.remove('map-hidden');
+            setTimeout(()=>{ map.invalidateSize(); map.flyToBounds(bounds, { padding:[40,40], maxZoom:7 }); }, 220);
+          }else{
+            map.flyToBounds(bounds, { padding:[40,40], maxZoom:7 });
+          }
+        }
+      }
+    }
+
+    // Resize observer
+    const ro = new ResizeObserver(()=> map.invalidateSize());
+    ro.observe(document.querySelector('aside'));
+
+    // Init baseline index immediately so suggestions appear right away
+    seedAliases();
+    buildBaseIndex();
+    enrichCountries();
+
+    // Initial load
+    loadCSV();
   </script>
 </body>
 </html>
