@@ -696,7 +696,7 @@
       const key = normalize(query);
       if(geoCache.has(key)) return geoCache.get(key);
       try{
-        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&email=sleepyoxsin@gmail.com&q=${encodeURIComponent(query)}`;
         const res = await fetch(url, { headers: { 'Accept':'application/json' }});
         if(!res.ok) return null;
         const arr = await res.json();
