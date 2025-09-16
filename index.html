@@ -28,12 +28,9 @@
     .brand .dot{ width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 10px var(--accent); }
     h1{ font-size:18px; margin:0; letter-spacing:.2px; }
 
-    .topbar{
-      display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
-    }
+    .topbar{ display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px; }
     .lang-select{
-      margin-left:auto;
-      display:flex; gap:6px; align-items:center;
+      margin-left:auto; display:flex; gap:6px; align-items:center;
       background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:4px 8px;
     }
     .lang-select select{
@@ -126,23 +123,13 @@
 
   <script>
     window.addEventListener('load', () => {
-      /* ======================== CONFIG (edit these) ========================
-
-         1) Map labels in your chosen language
-            -> Get a free MapTiler key: https://www.maptiler.com/cloud/
-            -> Paste it below. If left empty, map stays on OSM/OpenTopo/Esri (labels won’t localize).
-
-         2) Title/Summary translation
-            -> Default provider: "libre" (uses https://libretranslate.com demo; may be rate-limited)
-            -> To disable, set TRANSLATE_PROVIDER = "none"
-            -> To use your own hosted LibreTranslate: set TRANSLATE_BASE to your URL
-               (e.g., "https://translate.yourdomain.com")
-
-       ===================================================================== */
-
+      /* ======================== CONFIG ======================== */
+      // Your MapTiler key (restricted to your GitHub Pages domain)
       const MAPTILER_KEY = "qspUAdeXjo5iVDMV5uwL";
-      const TRANSLATE_PROVIDER = "libre"; // "libre" | "none"
-      const TRANSLATE_BASE = "https://libretranslate.com"; // change if you host your own
+
+      // Title/Summary translation provider: "libre" (public demo) or "none"
+      const TRANSLATE_PROVIDER = "libre";
+      const TRANSLATE_BASE = "https://libretranslate.com"; // change if you self-host
 
       // Supported UI languages
       const LANGS = ["en","zh","hi","es","ar"];
@@ -167,14 +154,12 @@
           const key = el.getAttribute("data-i18n-placeholder");
           if (t[key]) el.setAttribute("placeholder", t[key]);
         });
-        // Re-render to refresh feed labels in the chosen language
         render();
-        // Switch basemap to localized tiles if configured
-        if (MAPTILER_KEY) switchLocalizedBasemap();
+        if (MAPTILER_KEY) switchLocalizedBasemap(); // keep tiles in sync with language
       }
 
       /* -------------------- MAP LAYERS -------------------- */
-      // Fallback (no MapTiler key): OSM, OpenTopo, Esri Satellite
+      // Fallback layers (if MapTiler blocked)
       const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
       const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Data © OSM, SRTM | Tiles © OpenTopoMap (CC-BY-SA)' });
       const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -182,7 +167,7 @@
         attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar, GeoEye, USDA, USGS, AeroGRID, IGN, GIS User Community'
       });
 
-      // Localized layers (MapTiler) — created on demand
+      // MapTiler (Localized)
       let mtStreets=null, mtTopo=null, mtSat=null;
       function makeMapTilerLayers(lang){
         const p = `?key=${MAPTILER_KEY}&language=${lang}`;
@@ -191,31 +176,55 @@
         mtSat     = L.tileLayer(`https://api.maptiler.com/tiles/satellite/256/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`, { maxZoom:19, attribution:'Imagery © MapTiler & partners' });
       }
 
-      const map = L.map('map', { center:[25,15], zoom:2, layers:[osmStd] });
-      let currentBase = osmStd;
+      // Start map
+      const map = L.map('map', { center:[25,15], zoom:2, layers:[] });
+      let currentBase = null;
+      let layersControl = null;
 
-      let layersControl = L.control.layers({
-        "OpenStreetMap (Standard)": osmStd,
-        "OpenTopoMap (Terrain)": openTopo,
-        "Esri Satellite": esriSat
-      }, null, { position:'topright', collapsed:true }).addTo(map);
+      // Build layer control (MapTiler first if available, else OSM)
+      function buildLayersControl(useMapTiler){
+        if (layersControl) { map.removeControl(layersControl); layersControl = null; }
+        let bases={};
+        if (useMapTiler){
+          bases = { "Streets (Localized)": mtStreets, "Topo (Localized)": mtTopo, "Satellite": mtSat };
+        } else {
+          bases = { "OpenStreetMap (Standard)": osmStd, "OpenTopoMap (Terrain)": openTopo, "Esri Satellite": esriSat };
+        }
+        layersControl = L.control.layers(bases, null, { position:'topright', collapsed:true }).addTo(map);
+        const first = Object.values(bases)[0];
+        if (currentBase) map.removeLayer(currentBase);
+        currentBase = first;
+        currentBase.addTo(map);
+      }
 
+      // Switch MapTiler language layers
       function switchLocalizedBasemap(){
         const prevZoom = map.getZoom(), prevCenter = map.getCenter();
-        map.removeControl(layersControl);
         makeMapTilerLayers(currentLang);
-        layersControl = L.control.layers({
-          "Streets (Localized)": mtStreets,
-          "Topo (Localized)": mtTopo,
-          "Satellite": mtSat
-        }, null, { position:'topright', collapsed:true }).addTo(map);
-        if (currentBase) map.removeLayer(currentBase);
-        currentBase = mtStreets;
-        currentBase.addTo(map);
+        buildLayersControl(true);
         map.setView(prevCenter, prevZoom);
       }
 
-      if (MAPTILER_KEY){ switchLocalizedBasemap(); }
+      // Initialize basemap: try MapTiler, fallback to OSM if tile errors happen
+      let usingMapTiler = false;
+      if (MAPTILER_KEY){
+        try {
+          switchLocalizedBasemap();
+          usingMapTiler = true;
+
+          // If MapTiler tiles fail (bad referrer/quota), auto-fallback to OSM
+          const onTileError = () => {
+            if (!usingMapTiler) return;
+            usingMapTiler = false;
+            buildLayersControl(false);
+          };
+          [mtStreets, mtTopo, mtSat].forEach(l => l.on('tileerror', onTileError));
+        } catch(e){
+          buildLayersControl(false);
+        }
+      } else {
+        buildLayersControl(false);
+      }
 
       const markersLayer = L.layerGroup().addTo(map);
 
@@ -255,7 +264,6 @@
         const value = langSel.value;
         currentLang = LANGS.includes(value) ? value : 'en';
         applyI18n();
-        // Kick off translation for current items (titles + summaries)
         if (TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
       });
 
@@ -264,7 +272,6 @@
       function showBusy(on){ busyEl.style.display = on ? 'flex' : 'none'; }
 
       /* -------------------- Translation Utils -------------------- */
-      // Simple localStorage cache
       const transCache = {
         get(k){ try{ return localStorage.getItem(k); }catch{ return null; } },
         set(k,v){ try{ localStorage.setItem(k,v); }catch{} }
@@ -278,7 +285,6 @@
         if (cached) return cached;
 
         if (TRANSLATE_PROVIDER === 'libre'){
-          // LibreTranslate public demo
           const res = await fetch(`${TRANSLATE_BASE}/translate`, {
             method: 'POST',
             headers: { 'Content-Type':'application/json' },
@@ -290,17 +296,12 @@
           transCache.set(k, out);
           return out;
         }
-
-        // Fallback (no translation)
         return text;
       }
 
-      // Translate currently visible items' title+summary (sequential with small batching)
       let translateAbort = { aborted:false };
       async function translateVisibleItems(){
-        if (TRANSLATE_PROVIDER === 'none' || currentLang==='en') return; // nothing to do
-        const t = I18N[currentLang] || I18N.en;
-
+        if (TRANSLATE_PROVIDER === 'none' || currentLang==='en') return;
         const viewBounds = map.getBounds();
         const items = state.data.filter(i => inBounds(i.lat,i.lng,viewBounds));
         if (!items.length) return;
@@ -309,13 +310,11 @@
         showBusy(true);
 
         try{
-          // small concurrency to be kind to the public endpoint
           const concurrency = 3;
           let idx = 0;
           async function worker(){
             while(idx < items.length && !translateAbort.aborted){
               const i = items[idx++];
-              // translate title & summary if not cached
               i._t = i._t || {};
               if (!i._t[currentLang] || !i._t[currentLang].done){
                 const [tt, ss] = await Promise.all([
@@ -326,13 +325,12 @@
               }
             }
           }
-          const workers = Array.from({length:concurrency}, worker);
-          await Promise.all(workers);
+          await Promise.all(Array.from({length:concurrency}, worker));
         } catch(e){
           console.warn('Translation error:', e);
         } finally{
           showBusy(false);
-          render(); // re-render with any translated strings we now have
+          render();
         }
       }
 
@@ -361,7 +359,6 @@
           tagListEl.appendChild(label);
         });
       }
-
       function getTitle(i){
         if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].title) return i.title || '';
         return i._t[currentLang].title || i.title || '';
@@ -449,7 +446,7 @@
             lng: parseFloat(r.lng),
             confidence: r.confidence ? parseFloat(r.confidence) : null,
             sources: r.source_url ? [{ url: r.source_url }] : [],
-            _t: {} // translations bucket per language
+            _t: {} // translations per language
           }))
           .filter(i => Number.isFinite(i.lat) && Number.isFinite(i.lng))
           .sort((a,b) => (new Date(b.occurred_at).getTime()||0) - (new Date(a.occurred_at).getTime()||0));
@@ -457,7 +454,6 @@
           buildTagChips(state.data);
           render();
 
-          // If current language isn't English and translation is enabled, start translating visible items
           if (currentLang !== 'en' && TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
         } catch (err) {
           console.error(err);
