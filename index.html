@@ -9,6 +9,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+  <!-- Leaflet MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
   <!-- Papa Parse -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
@@ -45,28 +50,45 @@
     .filters{ display:grid; gap:8px; margin-top:10px; }
     .controls{ display:flex; gap:8px; align-items:center; }
     select, input[type="search"]{ width:100%; background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 10px; outline:none; }
-    .tag-list{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-    .tag-list label{ background:var(--chip); border:1px solid var(--border); border-radius:999px; padding:4px 8px; cursor:pointer; font-size:12px; display:inline-flex; gap:6px; align-items:center; }
-    .tag-list input{ accent-color:var(--accent); }
+
+    /* Dropdown blocks for filters */
+    .dropdown{ border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden; }
+    .dropdown > summary{
+      list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; color:#cbd5e1; user-select:none;
+      border-bottom:1px solid var(--border);
+    }
+    .dropdown > summary::-webkit-details-marker{ display:none; }
+    .dropdown-body{ padding:10px; display:grid; gap:8px; }
+    .cb-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 12px; }
+    .cb{ display:flex; gap:8px; align-items:center; font-size:12px; color:#d1d7e6; }
+    .cb input{ accent-color:var(--accent); }
+
     .hint{ color:var(--muted); font-size:12px; padding:6px 2px 0; }
 
     .feed{ padding:12px; display:grid; gap:10px; overflow:auto; min-height:0; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px; cursor:pointer; }
     .card h3{ margin:0 0 8px; font-size:15px; }
     .meta{ color:var(--muted); font-size:12px; margin-bottom:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .source a{ color:var(--accent); text-decoration:none; }
     .error{ background:#2b1212; color:#ffb0b0; border:1px solid #5b1f1f; padding:10px; border-radius:10px; margin:8px 0; display:none; }
     .busy{ position:sticky; top:0; z-index:4; display:none; gap:8px; align-items:center; color:#cbd6ea; font-size:12px; margin-top:8px; }
 
-    .leaflet-control-layers{ background:rgba(17,21,28,.92); color:var(--text); border:1px solid var(--border); }
-    .leaflet-control-layers label{ color:#e7edf7; }
-    .leaflet-control a{ background:var(--panel); border:1px solid var(--border); color:var(--text); }
-    .leaflet-bar a:hover{ background:#1a2230; }
+    /* Tag pin (emoji + color) */
+    .tag-pin .pin{
+      width:28px; height:28px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:16px; line-height:1; color:#fff;
+      border:2px solid #0b0f16; box-shadow:0 2px 6px rgba(0,0,0,.5);
+      transform: translateY(0);
+      background:#3b82f6;
+    }
+    .tag-pin .dot{ position:absolute; bottom:-6px; left:50%; transform:translateX(-50%); width:6px; height:6px; background:#0b0f16; border-radius:999px; }
 
     @media (max-width:980px){
       .app{ grid-template-columns:1fr; }
       aside{ border-left:none; border-top:1px solid var(--border); height:56vh; }
       #map{ height:44vh; }
+      .cb-grid{ grid-template-columns:repeat(1,minmax(0,1fr)); }
     }
   </style>
 </head>
@@ -107,14 +129,31 @@
               <option value="30d" data-i18n="time_30d">Last 30 days</option>
             </select>
           </div>
+
           <div class="controls">
             <input id="search" type="search" placeholder="Search title/summary" data-i18n-placeholder="search_ph" />
           </div>
-          <div class="tag-list" id="tagList"></div>
+
+          <!-- Categories dropdown (checkbox groups) — DEFAULT CLOSED -->
+          <details class="dropdown">
+            <summary>Categories</summary>
+            <div class="dropdown-body">
+              <div class="cb-grid" id="categoryGrid"></div>
+            </div>
+          </details>
+
+          <!-- Tags dropdown (auto from CSV) -->
+          <details class="dropdown">
+            <summary>Tags</summary>
+            <div class="dropdown-body">
+              <div class="cb-grid" id="tagsGrid"></div>
+            </div>
+          </details>
         </div>
+
         <div id="errorBox" class="error"></div>
         <div id="busy" class="busy">⏳ <span data-i18n="translating">Translating…</span></div>
-        <div class="hint" data-i18n="hint">Tip: click a region tab to zoom; the feed & markers filter by region + map view.</div>
+        <div class="hint" data-i18n="hint">Tip: region tabs zoom to visible waypoints; use categories/tags to refine.</div>
       </div>
 
       <div class="feed" id="feed"></div>
@@ -124,24 +163,85 @@
   <script>
     window.addEventListener('load', () => {
       /* ======================== CONFIG ======================== */
-      // Your MapTiler key (restricted to your GitHub Pages domain)
       const MAPTILER_KEY = "qspUAdeXjo5iVDMV5uwL";
 
-      // Title/Summary translation provider: "libre" (public demo) or "none"
-      const TRANSLATE_PROVIDER = "libre";
-      const TRANSLATE_BASE = "https://libretranslate.com"; // change if you self-host
+      // Free translation via MyMemory
+      const TRANSLATE_PROVIDER = "mymemory";
+      const MM_BASE = "https://api.mymemory.translated.net/get";
+      const MM_BATCH_SIZE = 25;
+      const MM_MAX_CHARS = 1200;
+      const MM_DELAY_MS = 200;
+      const MM_RETRIES = 3;
+      const MM_BACKOFF_BASE_MS = 400;
+      let mmWarnedOnce = false;
 
-      // Supported UI languages
       const LANGS = ["en","zh","hi","es","ar"];
+      const LANG_ALIASES = { en:"en", zh:"zh-CN", hi:"hi", es:"es", ar:"ar" };
       let currentLang = "en";
 
-      // UI translations
+      // Tag styles (action/event oriented)
+      const TAG_STYLES = {
+        protest:{emoji:'✊',color:'#ef4444'}, riot:{emoji:'🪓',color:'#ef4444'},
+        strike:{emoji:'🪧',color:'#f59e0b'}, blockade:{emoji:'⛔',color:'#e11d48'},
+        checkpoint:{emoji:'🧭',color:'#94a3b8'}, border:{emoji:'🚧',color:'#d97706'},
+        incursion:{emoji:'🪖',color:'#64748b'}, military:{emoji:'🎖️',color:'#475569'},
+        artillery:{emoji:'🎯',color:'#f43f5e'}, airstrike:{emoji:'✈️',color:'#ef4444'},
+        shelling:{emoji:'💣',color:'#f43f5e'}, missile:{emoji:'🚀',color:'#fb923c'},
+        drone:{emoji:'🛸',color:'#a78bfa'}, explosion:{emoji:'💥',color:'#f43f5e'},
+        security:{emoji:'🛡️',color:'#60a5fa'}, kidnapping:{emoji:'🕳️',color:'#475569'},
+        assassination:{emoji:'🎯',color:'#ef4444'}, hostage:{emoji:'🪢',color:'#ef4444'},
+        cyber:{emoji:'🖥️',color:'#14b8a6'}, disinformation:{emoji:'🧩',color:'#8b5cf6'},
+        censorship:{emoji:'🚫',color:'#ef4444'},
+        diplomacy:{emoji:'🤝',color:'#16a34a'}, negotiation:{emoji:'🗣️',color:'#16a34a'},
+        ceasefire:{emoji:'🕊️',color:'#60a5fa'}, election:{emoji:'🗳️',color:'#22c55e'},
+        politics:{emoji:'🏛️',color:'#64748b'}, corruption:{emoji:'💰',color:'#eab308'},
+        sanction:{emoji:'💱',color:'#0ea5e9'}, trade:{emoji:'🧾',color:'#38bdf8'},
+        export:{emoji:'📤',color:'#38bdf8'}, import:{emoji:'📥',color:'#38bdf8'},
+        inflation:{emoji:'📈',color:'#f59e0b'}, currency:{emoji:'💱',color:'#06b6d4'},
+        banking:{emoji:'🏦',color:'#60a5fa'}, market:{emoji:'🧮',color:'#8b5cf6'},
+        debt:{emoji:'🧾',color:'#e11d48'},
+        outage:{emoji:'📴',color:'#64748b'}, power:{emoji:'⚡',color:'#facc15'},
+        internet:{emoji:'🌐',color:'#22c55e'}, communications:{emoji:'📡',color:'#8b5cf6'},
+        energy:{emoji:'🔌',color:'#f59e0b'}, oil:{emoji:'🛢️',color:'#6b7280'},
+        gas:{emoji:'🧯',color:'#ef4444'}, pipeline:{emoji:'🧵',color:'#94a3b8'},
+        humanitarian:{emoji:'🎗️',color:'#16a34a'}, aid:{emoji:'📦',color:'#10b981'},
+        evacuation:{emoji:'🚌',color:'#f59e0b'}, displacement:{emoji:'🚶',color:'#10b981'},
+        medical:{emoji:'🏥',color:'#e84393'}, disease:{emoji:'🧫',color:'#a3e635'},
+        pandemic:{emoji:'🦠',color:'#84cc16'},
+        flood:{emoji:'🌊',color:'#0ea5e9'}, earthquake:{emoji:'🌎',color:'#8b5e3c'},
+        wildfire:{emoji:'🔥',color:'#f97316'}, volcano:{emoji:'🌋',color:'#f97316'},
+        tsunami:{emoji:'🌊',color:'#06b6d4'}, landslide:{emoji:'⛰️',color:'#a16207'},
+        storm:{emoji:'⛈️',color:'#64748b'}, hurricane:{emoji:'🌀',color:'#38bdf8'},
+        tornado:{emoji:'🌪️',color:'#6b7280'}, drought:{emoji:'🏜️',color:'#d97706'},
+        heatwave:{emoji:'🌡️',color:'#ef4444'}, water:{emoji:'🚰',color:'#38bdf8'},
+        rail:{emoji:'🚆',color:'#9ca3af'}, aviation:{emoji:'✈️',color:'#2563eb'},
+        port:{emoji:'⚓',color:'#334155'}, maritime:{emoji:'⚓',color:'#334155'},
+        airport:{emoji:'🛫',color:'#2563eb'}, smuggling:{emoji:'📦',color:'#a8a29e'},
+        education:{emoji:'🎓',color:'#6366f1'}, religion:{emoji:'🛐',color:'#94a3b8'}
+      };
+      const DEFAULT_STYLE = { emoji:'📍', color:'#3b82f6' };
+
+      const LEGEND_GROUPS = {
+        "Conflict": ["protest","riot","strike","blockade","checkpoint","border","incursion","military","artillery","airstrike","shelling","missile","drone","explosion","security","kidnapping","assassination","hostage"],
+        "Politics & Diplomacy": ["diplomacy","negotiation","ceasefire","election","politics","corruption"],
+        "Economy": ["sanction","trade","export","import","inflation","currency","banking","market","debt","energy","oil","gas","pipeline"],
+        "Infrastructure & Utilities": ["outage","power","internet","communications"],
+        "Cyber & Info": ["cyber","disinformation","censorship"],
+        "Humanitarian": ["humanitarian","aid","evacuation","displacement"],
+        "Health": ["medical","disease","pandemic"],
+        "Environment": ["flood","earthquake","wildfire","volcano","tsunami","landslide","storm","hurricane","tornado","drought","heatwave","water"],
+        "Transportation & Logistics": ["rail","aviation","port","maritime","airport","smuggling"],
+        "Society": ["education","religion"]
+      };
+
+      const CATEGORY_LIST = Object.keys(LEGEND_GROUPS);
+
       const I18N = {
-        en:{title:"Live Incident Map",language:"Language",tab_all:"All",tab_ua_ru:"Ukraine / Russia",tab_il_ps:"Israel / Palestine",tab_ve:"Venezuela",time_all:"All time",time_24h:"Last 24 hours",time_7d:"Last 7 days",time_30d:"Last 30 days",search_ph:"Search title/summary",hint:"Tip: click a region tab to zoom; the feed & markers filter by region + map view.",no_results:"No incidents match the current view/filters.",open_source:"Open source ↗",confidence:"Confidence",translating:"Translating…"},
-        zh:{title:"事件地图",language:"语言",tab_all:"全部",tab_ua_ru:"乌克兰 / 俄罗斯",tab_il_ps:"以色列 / 巴勒斯坦",tab_ve:"委内瑞拉",time_all:"全部时间",time_24h:"过去24小时",time_7d:"过去7天",time_30d:"过去30天",search_ph:"搜索 标题/摘要",hint:"提示：选择区域标签以缩放；信息流与标记会随区域与视图过滤。",no_results:"没有符合当前视图/筛选条件的事件。",open_source:"来源 ↗",confidence:"可信度",translating:"正在翻译…"},
-        hi:{title:"लाइव घटना मानचित्र",language:"भाषा",tab_all:"सभी",tab_ua_ru:"यूक्रेन / रूस",tab_il_ps:"इज़राइल / फ़िलिस्तीन",tab_ve:"वेनेज़ुएला",time_all:"सभी समय",time_24h:"पिछले 24 घंटे",time_7d:"पिछले 7 दिन",time_30d:"पिछले 30 दिन",search_ph:"शीर्षक/सारांश खोजें",hint:"संकेत: क्षेत्र टैब चुनें; फ़ीड और मार्कर क्षेत्र व दृश्य के अनुसार फ़िल्टर होते हैं।",no_results:"वर्तमान दृश्य/फ़िल्टर से कोई घटना मेल नहीं खाती।",open_source:"स्रोत ↗",confidence:"विश्वसनीयता",translating:"अनुवाद हो रहा है…"},
-        es:{title:"Mapa de Incidentes",language:"Idioma",tab_all:"Todos",tab_ua_ru:"Ucrania / Rusia",tab_il_ps:"Israel / Palestina",tab_ve:"Venezuela",time_all:"Todo el tiempo",time_24h:"Últimas 24 horas",time_7d:"Últimos 7 días",time_30d:"Últimos 30 días",search_ph:"Buscar título/resumen",hint:"Consejo: elige una pestaña regional; el feed y los marcadores se filtran por región y vista.",no_results:"No hay incidentes que coincidan con la vista/filtros.",open_source:"Fuente ↗",confidence:"Confianza",translating:"Traduciendo…"},
-        ar:{title:"خريطة الحوادث المباشرة",language:"اللغة",tab_all:"الكل",tab_ua_ru:"أوكرانيا / روسيا",tab_il_ps:"إسرائيل / فلسطين",tab_ve:"فنزويلا",time_all:"كل الوقت",time_24h:"آخر 24 ساعة",time_7d:"آخر 7 أيام",time_30d:"آخر 30 يومًا",search_ph:"ابحث في العنوان/الملخص",hint:"تلميح: اختر تبويب منطقة للتكبير؛ يتم تصفية الخلاصة والعلامات حسب المنطقة والمنظور.",no_results:"لا توجد حوادث مطابقة للعرض/المرشحات الحالية.",open_source:"المصدر ↗",confidence:"الثقة",translating:"…جاري الترجمة"}
+        en:{title:"Live Incident Map",language:"Language",tab_all:"All",tab_ua_ru:"Ukraine / Russia",tab_il_ps:"Israel / Palestine",tab_ve:"Venezuela",time_all:"All time",time_24h:"Last 24 hours",time_7d:"Last 7 days",time_30d:"Last 30 days",search_ph:"Search title/summary",hint:"Tip: region tabs zoom to visible waypoints; use categories/tags to refine.",no_results:"No incidents match the current view/filters.",open_source:"Open source ↗",confidence:"Confidence",translating:"Translating…"},
+        zh:{title:"事件地图",language:"语言",tab_all:"全部",tab_ua_ru:"乌克兰 / 俄罗斯",tab_il_ps:"以色列 / 巴勒斯坦",tab_ve:"委内瑞拉",time_all:"全部时间",time_24h:"过去24小时",time_7d:"过去7天",time_30d:"过去30天",search_ph:"搜索 标题/摘要",hint:"提示：选择区域标签以缩放；使用类别/标签进一步筛选。",no_results:"没有符合当前视图/筛选条件的事件。",open_source:"来源 ↗",confidence:"可信度",translating:"正在翻译…"},
+        hi:{title:"लाइव घटना मानचित्र",language:"भाषा",tab_all:"सभी",tab_ua_ru:"यूक्रेन / रूस",tab_il_ps:"इज़राइल / फ़िलिस्तीन",tab_ve:"वेनेज़ुएला",time_all:"सभी समय",time_24h:"पिछले 24 घंटे",time_7d:"पिछले 7 दिन",time_30d:"पिछले 30 दिन",search_ph:"शीर्षक/सारांश खोजें",hint:"संकेत: क्षेत्र टैब ज़ूम करता है; श्रेणी/टैग से फ़िल्टर करें।",no_results:"वर्तमान दृश्य/फ़िल्टर से कोई घटना मेल नहीं खाती।",open_source:"स्रोत ↗",confidence:"विश्वसनीयता",translating:"अनुवाद हो रहा है…"},
+        es:{title:"Mapa de Incidentes",language:"Idioma",tab_all:"Todos",tab_ua_ru:"Ucrania / Rusia",tab_il_ps:"Israel / Palestina",tab_ve:"Venezuela",time_all:"Todo el tiempo",time_24h:"Últimas 24 horas",time_7d:"Últimos 7 días",time_30d:"Últimos 30 días",search_ph:"Buscar título/resumen",hint:"Consejo: las pestañas de región acercan a los puntos; usa categorías/etiquetas para refinar.",no_results:"No hay incidentes que coincidan con la vista/filtros.",open_source:"Fuente ↗",confidence:"Confianza",translating:"Traduciendo…"},
+        ar:{title:"خريطة الحوادث المباشرة",language:"اللغة",tab_all:"الكل",tab_ua_ru:"أوكرانيا / روسيا",tab_il_ps:"إسرائيل / فلسطين",tab_ve:"فنزويلا",time_all:"كل الوقت",time_24h:"آخر 24 ساعة",time_7d:"آخر 7 أيام",time_30d:"آخر 30 يومًا",search_ph:"ابحث في العنوان/الملخص",hint:"تلميح: تبويبات المناطق تُكبّر النقاط الظاهرة؛ استخدم الفئات/الوسوم للتصفية.",no_results:"لا توجد حوادث مطابقة للعرض/المرشحات الحالية.",open_source:"المصدر ↗",confidence:"الثقة",translating:"…جاري الترجمة"}
       };
 
       function applyI18n(){
@@ -154,20 +254,17 @@
           const key = el.getAttribute("data-i18n-placeholder");
           if (t[key]) el.setAttribute("placeholder", t[key]);
         });
+        renderCategoryCheckboxes();
+        renderTagCheckboxes(state.data);
         render();
-        if (MAPTILER_KEY) switchLocalizedBasemap(); // keep tiles in sync with language
+        if (MAPTILER_KEY) switchLocalizedBasemap();
       }
 
       /* -------------------- MAP LAYERS -------------------- */
-      // Fallback layers (if MapTiler blocked)
       const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
       const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Data © OSM, SRTM | Tiles © OpenTopoMap (CC-BY-SA)' });
-      const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19,
-        attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar, GeoEye, USDA, USGS, AeroGRID, IGN, GIS User Community'
-      });
+      const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar, GeoEye, USDA, USGS, AeroGRID, IGN, GIS User Community' });
 
-      // MapTiler (Localized)
       let mtStreets=null, mtTopo=null, mtSat=null;
       function makeMapTilerLayers(lang){
         const p = `?key=${MAPTILER_KEY}&language=${lang}`;
@@ -176,12 +273,21 @@
         mtSat     = L.tileLayer(`https://api.maptiler.com/tiles/satellite/256/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`, { maxZoom:19, attribution:'Imagery © MapTiler & partners' });
       }
 
-      // Start map
-      const map = L.map('map', { center:[25,15], zoom:2, layers:[] });
+      // Re-enable vertical clamping; keep infinite E/W by using very wide longitudes.
+      const map = L.map('map', {
+        center:[25,15],
+        zoom:2,
+        minZoom:2,
+        maxZoom:16,
+        worldCopyJump:true,
+        maxBounds: [[-85, -100000], [85, 100000]],
+        maxBoundsViscosity: 1.0,
+        layers:[]
+      });
+
       let currentBase = null;
       let layersControl = null;
 
-      // Build layer control (MapTiler first if available, else OSM)
       function buildLayersControl(useMapTiler){
         if (layersControl) { map.removeControl(layersControl); layersControl = null; }
         let bases={};
@@ -197,7 +303,6 @@
         currentBase.addTo(map);
       }
 
-      // Switch MapTiler language layers
       function switchLocalizedBasemap(){
         const prevZoom = map.getZoom(), prevCenter = map.getCenter();
         makeMapTilerLayers(currentLang);
@@ -205,14 +310,11 @@
         map.setView(prevCenter, prevZoom);
       }
 
-      // Initialize basemap: try MapTiler, fallback to OSM if tile errors happen
       let usingMapTiler = false;
       if (MAPTILER_KEY){
         try {
           switchLocalizedBasemap();
           usingMapTiler = true;
-
-          // If MapTiler tiles fail (bad referrer/quota), auto-fallback to OSM
           const onTileError = () => {
             if (!usingMapTiler) return;
             usingMapTiler = false;
@@ -226,10 +328,24 @@
         buildLayersControl(false);
       }
 
-      const markersLayer = L.layerGroup().addTo(map);
+      // Clusters + lookup
+      const clusters = L.markerClusterGroup({
+        showCoverageOnHover:false,
+        spiderfyOnEveryZoom:true,
+        maxClusterRadius:48,
+        disableClusteringAtZoom: 11
+      }).addTo(map);
+      const markersById = new Map();
 
-      /* -------------------- Regions & State -------------------- */
-      const state = { data: [], activeTags:new Set(), timeWindow:'all', query:'', regionKey:'all' };
+      /* -------------------- STATE -------------------- */
+      const state = {
+        data: [],
+        activeTags:new Set(),
+        activeCats:new Set(),
+        timeWindow:'all',
+        query:'',
+        regionKey:'all'
+      };
 
       const REGION_BOUNDS = {
         all: null,
@@ -238,18 +354,31 @@
         ve:    L.latLngBounds([[0.0, -74.0],[13.0, -59.0]])
       };
 
-      const regionTabs = document.getElementById('regionTabs');
-      regionTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('.tab'); if (!btn) return;
-        regionTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        btn.classList.add('active');
-        state.regionKey = btn.dataset.key;
-        if (state.regionKey === 'all') map.setView([25, 15], 2);
-        else map.fitBounds(REGION_BOUNDS[state.regionKey], { padding:[20,20] });
-        render();
-      });
+      function itemsInRegion(key){
+        return state.data.filter(i => {
+          const inReg = key === 'all' ? true :
+            (Number.isFinite(i.lat) && Number.isFinite(i.lng) && REGION_BOUNDS[key].contains([i.lat, i.lng]));
+          if (!inReg) return false;
+          return itemMatchesFilters(i);
+        });
+      }
 
-      const tagListEl = document.getElementById('tagList');
+      function fitToRegion(key){
+        const list = itemsInRegion(key);
+        if (list.length > 0){
+          const b = L.latLngBounds(list.map(i => [i.lat, i.lng]));
+          map.fitBounds(b, { padding:[40,40], maxZoom: 9 });
+        } else if (key !== 'all') {
+          map.fitBounds(REGION_BOUNDS[key], { padding:[60,60], maxZoom: 5 });
+        } else {
+          map.setView([25, 15], 2);
+        }
+      }
+
+      /* --------- UI refs --------- */
+      const regionTabs = document.getElementById('regionTabs');
+      const categoryGrid = document.getElementById('categoryGrid');
+      const tagsGrid = document.getElementById('tagsGrid');
       const feedEl = document.getElementById('feed');
       const timeSel = document.getElementById('timeWindow');
       const searchEl = document.getElementById('search');
@@ -257,84 +386,170 @@
       const busyEl = document.getElementById('busy');
       const langSel = document.getElementById('langSel');
 
-      timeSel.addEventListener('change', () => { state.timeWindow = timeSel.value; render(); });
-      searchEl.addEventListener('input', () => { state.query = searchEl.value.toLowerCase(); render(); });
+      /* --------- Listeners --------- */
+      regionTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tab'); if (!btn) return;
+        regionTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        state.regionKey = btn.dataset.key;
+        fitToRegion(state.regionKey);
+        render();
+      });
+
+      timeSel.addEventListener('change', () => { state.timeWindow = timeSel.value; fitToRegion(state.regionKey); render(); });
+      searchEl.addEventListener('input', () => { state.query = searchEl.value.toLowerCase(); fitToRegion(state.regionKey); render(); });
       map.on('moveend', render);
-      langSel.addEventListener('change', () => {
+
+      langSel.addEventListener('change', async () => {
         const value = langSel.value;
         currentLang = LANGS.includes(value) ? value : 'en';
         applyI18n();
-        if (TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
+        if (TRANSLATE_PROVIDER && currentLang !== 'en') {
+          await translateAllItems();
+        } else {
+          render();
+        }
       });
 
       function showError(msg){ errorBox.style.display='block'; errorBox.textContent=msg; }
       function clearError(){ errorBox.style.display='none'; errorBox.textContent=''; }
       function showBusy(on){ busyEl.style.display = on ? 'flex' : 'none'; }
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-      /* -------------------- Translation Utils -------------------- */
+      /* -------------------- TRANSLATION (MyMemory) -------------------- */
+      function detectLangFromScript(text){
+        if (!text) return 'en';
+        for (const ch of text){
+          const code = ch.codePointAt(0);
+          if ((code>=0x4E00 && code<=0x9FFF) || (code>=0x3400 && code<=0x4DBF)) return 'zh-CN';
+          if (code>=0x0600 && code<=0x06FF) return 'ar';
+          if (code>=0x0900 && code<=0x097F) return 'hi';
+        }
+        const accented = (text.match(/[áéíóúñüÁÉÍÓÚÑÜ]/g)||[]).length;
+        if (accented >= 2) return 'es';
+        return 'en';
+      }
+
       const transCache = {
         get(k){ try{ return localStorage.getItem(k); }catch{ return null; } },
         set(k,v){ try{ localStorage.setItem(k,v); }catch{} }
       };
-      function keyFor(lang, text){ return `tr:${lang}:${text}`; }
+      const SEP_REC = "🧿🔗🧿";
+      function cacheKey(provider, target, text){ return `tr:${provider}:${target}:${text}`; }
 
-      async function translateText(text, target){
-        if (!text || target==='en') return text;
-        const k = keyFor(target, text);
-        const cached = transCache.get(k);
-        if (cached) return cached;
-
-        if (TRANSLATE_PROVIDER === 'libre'){
-          const res = await fetch(`${TRANSLATE_BASE}/translate`, {
-            method: 'POST',
-            headers: { 'Content-Type':'application/json' },
-            body: JSON.stringify({ q: text, source:'auto', target: target, format:'text' })
-          });
-          if (!res.ok) throw new Error(`Translate HTTP ${res.status}`);
-          const data = await res.json();
-          const out = (data && (data.translatedText || data.translation)) || text;
-          transCache.set(k, out);
-          return out;
+      async function myMemoryRequest(q, src, tgt){
+        const url = `${MM_BASE}?q=${encodeURIComponent(q)}&langpair=${encodeURIComponent(src)}|${encodeURIComponent(tgt)}`;
+        let attempt = 0;
+        while (attempt <= MM_RETRIES){
+          try{
+            const res = await fetch(url, { method:'GET', mode:'cors', cache:'no-store' });
+            if (!res.ok){
+              if ((res.status===429 || res.status===503) && attempt < MM_RETRIES){
+                attempt++;
+                await sleep(MM_BACKOFF_BASE_MS * Math.pow(2, attempt-1));
+                continue;
+              }
+              throw new Error(`HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const out = (data && data.responseData && data.responseData.translatedText) ? data.responseData.translatedText : q;
+            return out;
+          } catch (e){
+            if (attempt < MM_RETRIES){
+              attempt++;
+              await sleep(MM_BACKOFF_BASE_MS * Math.pow(2, attempt-1));
+              continue;
+            }
+            if (!mmWarnedOnce){
+              showError('Translation failed (free API busy). Showing original text.');
+              mmWarnedOnce = true;
+            }
+            return q;
+          }
         }
-        return text;
+        return q;
       }
 
-      let translateAbort = { aborted:false };
-      async function translateVisibleItems(){
-        if (TRANSLATE_PROVIDER === 'none' || currentLang==='en') return;
-        const viewBounds = map.getBounds();
-        const items = state.data.filter(i => inBounds(i.lat,i.lng,viewBounds));
-        if (!items.length) return;
+      async function translateList(texts, target){
+        const tgt = LANG_ALIASES[target] || 'en';
+        const nonEmpty = texts.find(t => (t||'').trim().length);
+        const srcGuess = detectLangFromScript(nonEmpty || '');
 
-        translateAbort.aborted = false;
-        showBusy(true);
+        const batches = [];
+        let cur = [];
+        let chars = 0;
+        for (const s of texts){
+          const str = (s||'').trim();
+          const extraSep = cur.length ? SEP_REC.length : 0;
+          if (cur.length >= MM_BATCH_SIZE || (chars + str.length + extraSep) > MM_MAX_CHARS){
+            batches.push(cur.slice());
+            cur = [];
+            chars = 0;
+          }
+          cur.push(str);
+          chars += str.length + extraSep;
+        }
+        if (cur.length) batches.push(cur);
 
-        try{
-          const concurrency = 3;
-          let idx = 0;
-          async function worker(){
-            while(idx < items.length && !translateAbort.aborted){
-              const i = items[idx++];
-              i._t = i._t || {};
-              if (!i._t[currentLang] || !i._t[currentLang].done){
-                const [tt, ss] = await Promise.all([
-                  translateText(i.title || '', currentLang),
-                  translateText(i.summary || '', currentLang)
-                ]);
-                i._t[currentLang] = { title:tt, summary:ss, done:true };
+        const results = [];
+        for (const b of batches){
+          const src = detectLangFromScript(b.find(t => t)||'') || srcGuess;
+          if ((src || 'en') === tgt){
+            results.push(...b);
+          } else {
+            const joined = b.join(SEP_REC);
+            const translated = await myMemoryRequest(joined, src, tgt);
+            const parts = translated.split(SEP_REC);
+            if (parts.length === b.length){
+              results.push(...parts);
+            } else {
+              for (const single of b){
+                const k = cacheKey('mm', tgt, single);
+                const cached = transCache.get(k);
+                if (cached){ results.push(cached); continue; }
+                const one = await myMemoryRequest(single, src, tgt);
+                transCache.set(k, one);
+                results.push(one);
               }
             }
           }
-          await Promise.all(Array.from({length:concurrency}, worker));
-        } catch(e){
-          console.warn('Translation error:', e);
-        } finally{
+          if (MM_DELAY_MS) await sleep(MM_DELAY_MS);
+        }
+        return results;
+      }
+
+      async function translateAllItems(){
+        if (!state.data.length || currentLang==='en') { render(); return; }
+
+        showBusy(true);
+        try{
+          const need = state.data.filter(i => !(i._t && i._t[currentLang] && i._t[currentLang].done));
+          if (!need.length){ render(); return; }
+
+          const titles = need.map(i => (i.title||'').trim());
+          const sums   = need.map(i => (i.summary||'').trim());
+
+          const [titlesOut, sumsOut] = await Promise.all([
+            translateList(titles, currentLang),
+            translateList(sums, currentLang)
+          ]);
+
+          for (let k=0; k<need.length; k++){
+            const row = need[k];
+            row._t = row._t || {};
+            row._t[currentLang] = {
+              title: titlesOut[k] || row.title || '',
+              summary: sumsOut[k] || row.summary || '',
+              done: true
+            };
+          }
+        } finally {
           showBusy(false);
           render();
         }
       }
 
-      /* -------------------- Helpers -------------------- */
+      /* -------------------- FILTER LOGIC -------------------- */
       function withinTimeWindow(iso, window) {
         if (!iso) return false;
         if (window === "all") return true;
@@ -345,20 +560,84 @@
         if (window === "30d") return diff <= 30*day;
         return true;
       }
+
       function inBounds(lat, lng, bounds) { return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]); }
       function matchesRegion(i){ if (state.regionKey === 'all') return true; const b = REGION_BOUNDS[state.regionKey]; return Number.isFinite(i.lat) && Number.isFinite(i.lng) && b.contains([i.lat, i.lng]); }
-      function buildTagChips(data) {
-        const tags = new Set();
-        data.forEach(i => (i.tags || []).forEach(t => tags.add(t)));
-        tagListEl.innerHTML = '';
-        tags.forEach(tag => {
-          const label = document.createElement('label');
-          const cb = document.createElement('input'); cb.type='checkbox'; cb.value=tag;
-          cb.addEventListener('change', () => { if (cb.checked) state.activeTags.add(tag); else state.activeTags.delete(tag); render(); });
-          label.appendChild(cb); label.append(' ' + tag);
-          tagListEl.appendChild(label);
+
+      function itemMatchesFilters(i){
+        const matchesTime = withinTimeWindow(i.occurred_at, state.timeWindow);
+        const matchesQuery = !state.query
+          || (i.title && i.title.toLowerCase().includes(state.query))
+          || (i.summary && i.summary.toLowerCase().includes(state.query));
+
+        // Category filter: if any categories checked, item must overlap union of those groups
+        let matchesCats = true;
+        if (state.activeCats.size > 0){
+          const itemTags = new Set((i.tags||[]).map(t => (t||'').toLowerCase()));
+          matchesCats = false;
+          const union = new Set();
+          for (const g of state.activeCats){
+            const arr = LEGEND_GROUPS[g] || [];
+            arr.forEach(t => union.add(t));
+          }
+          for (const t of union){ if (itemTags.has(t)) { matchesCats = true; break; } }
+        }
+
+        // Specific tag checkboxes: if any checked, require overlap
+        const matchesTags = state.activeTags.size === 0
+          ? true
+          : (i.tags || []).some(tt => state.activeTags.has((tt||'').toLowerCase()));
+
+        return matchesTime && matchesQuery && matchesCats && matchesTags;
+      }
+
+      /* -------------------- UI BUILDERS -------------------- */
+      function renderCategoryCheckboxes(){
+        categoryGrid.innerHTML = '';
+        CATEGORY_LIST.forEach(cat => {
+          const wrap = document.createElement('label');
+          wrap.className = 'cb';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = cat;
+          cb.checked = state.activeCats.has(cat);
+          cb.addEventListener('change', () => {
+            if (cb.checked) state.activeCats.add(cat); else state.activeCats.delete(cat);
+            fitToRegion(state.regionKey);
+            render();
+          });
+          const txt = document.createElement('span');
+          txt.textContent = cat;
+          wrap.appendChild(cb); wrap.appendChild(txt);
+          categoryGrid.appendChild(wrap);
         });
       }
+
+      function renderTagCheckboxes(data){
+        const tagsSet = new Set();
+        data.forEach(i => (i.tags || []).forEach(t => tagsSet.add((t||'').trim().toLowerCase())));
+        const tags = Array.from(tagsSet).filter(Boolean).sort();
+
+        tagsGrid.innerHTML = '';
+        tags.forEach(tag => {
+          const wrap = document.createElement('label');
+          wrap.className = 'cb';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = tag;
+          cb.checked = state.activeTags.has(tag);
+          cb.addEventListener('change', () => {
+            if (cb.checked) state.activeTags.add(tag); else state.activeTags.delete(tag);
+            fitToRegion(state.regionKey);
+            render();
+          });
+          const txt = document.createElement('span');
+          txt.textContent = tag;
+          wrap.appendChild(cb); wrap.appendChild(txt);
+          tagsGrid.appendChild(wrap);
+        });
+      }
+
       function getTitle(i){
         if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].title) return i.title || '';
         return i._t[currentLang].title || i.title || '';
@@ -368,24 +647,30 @@
         return i._t[currentLang].summary || i.summary || '';
       }
 
-      /* -------------------- Render -------------------- */
+      function makeIcon(primaryTag){
+        const key = (primaryTag || '').toLowerCase();
+        const style = TAG_STYLES[key] || DEFAULT_STYLE;
+        const html = `<div class="pin" style="background:${style.color}">${style.emoji}</div><div class="dot"></div>`;
+        return L.divIcon({ className:'tag-pin', html, iconSize:[28,34], iconAnchor:[14,30], popupAnchor:[0,-28] });
+      }
+
+      /* -------------------- RENDER -------------------- */
       function render() {
         const t = I18N[currentLang] || I18N.en;
         const viewBounds = map.getBounds();
         const items = state.data.filter(i => {
-          const matchesTime = withinTimeWindow(i.occurred_at, state.timeWindow);
-          const matchesQuery = !state.query
-            || (i.title && i.title.toLowerCase().includes(state.query))
-            || (i.summary && i.summary.toLowerCase().includes(state.query));
-          const matchesTags = state.activeTags.size === 0 || (i.tags || []).some(tt => state.activeTags.has(tt));
-          const matchesReg = matchesRegion(i);
-          const matchesMap = inBounds(i.lat, i.lng, viewBounds);
-          return matchesTime && matchesQuery && matchesTags && matchesReg && matchesMap;
+          if (!matchesRegion(i)) return false;
+          if (!itemMatchesFilters(i)) return false;
+          return inBounds(i.lat, i.lng, viewBounds);
         });
 
-        markersLayer.clearLayers();
+        clusters.clearLayers();
+        markersById.clear();
+
         items.forEach(i => {
-          const m = L.marker([i.lat, i.lng]).addTo(markersLayer);
+          const primaryTag = ((i.tags||[])[0] || '').toLowerCase();
+          const m = L.marker([i.lat, i.lng], { icon: makeIcon(primaryTag) });
+
           const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
           const tagStr = (i.tags || []).join(', ');
           const conf = (i.confidence ?? '') !== '' ? `${t.confidence}: ${i.confidence}` : '';
@@ -393,6 +678,9 @@
           const summary = getSummary(i);
           const src = i.sources && i.sources[0] ? `<br><a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '';
           m.bindPopup(`<b>${title}</b><br>${time}<br>${summary}<br>${tagStr}<br>${conf}${src}`);
+
+          clusters.addLayer(m);
+          markersById.set(i.id, m);
         });
 
         feedEl.innerHTML = '';
@@ -419,12 +707,22 @@
                 ${ i.sources && i.sources[0] ? `<a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '' }
               </div>
             `;
+            card.addEventListener('click', () => {
+              const m = markersById.get(i.id);
+              if (m) {
+                const targetZoom = Math.max(map.getZoom(), 9);
+                map.flyTo(m.getLatLng(), targetZoom, { duration: 0.6 });
+                setTimeout(() => m.openPopup(), 650);
+              } else {
+                map.flyTo([i.lat, i.lng], 9, { duration: 0.6 });
+              }
+            });
             feedEl.appendChild(card);
           });
         }
       }
 
-      /* -------------------- CSV Loader -------------------- */
+      /* -------------------- CSV LOADER -------------------- */
       const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7bipbinJbUpjJN2nG8Yr0jb6fNoO8PYxTDvIyRplRvoNQcN1oyvXgTJZ-P30pDe-OD7JJ-1odsj3J/pub?output=csv";
 
       async function loadCSV() {
@@ -446,23 +744,23 @@
             lng: parseFloat(r.lng),
             confidence: r.confidence ? parseFloat(r.confidence) : null,
             sources: r.source_url ? [{ url: r.source_url }] : [],
-            _t: {} // translations per language
+            _t: {}
           }))
           .filter(i => Number.isFinite(i.lat) && Number.isFinite(i.lng))
           .sort((a,b) => (new Date(b.occurred_at).getTime()||0) - (new Date(a.occurred_at).getTime()||0));
 
-          buildTagChips(state.data);
+          renderTagCheckboxes(state.data);
+          fitToRegion(state.regionKey);
           render();
 
-          if (currentLang !== 'en' && TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
+          if (currentLang !== 'en' && TRANSLATE_PROVIDER) await translateAllItems();
         } catch (err) {
           console.error(err);
           showError("Failed to fetch CSV (network/CORS). Ensure the sheet is 'Published to the web' as CSV.");
         }
       }
 
-      /* -------------------- Init -------------------- */
-      function inBounds(lat, lng, bounds) { return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]); }
+      /* -------------------- INIT -------------------- */
       applyI18n();
       loadCSV();
       setInterval(loadCSV, 5 * 60 * 1000);
