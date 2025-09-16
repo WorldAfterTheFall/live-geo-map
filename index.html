@@ -78,7 +78,7 @@
     input[type="search"]::placeholder{ color:#9fb0c6; }
     .chip-btns{ display:flex; gap:8px; }
     .chip-btns .chip{ flex:1 1 auto; cursor:pointer; }
-    .chip-btns .chip:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+    .chip-btns .chip:focus-visible{ outline:2px solid var(--focus); }
 
     .dropdown{ border:1px solid var(--border); border-radius:12px; background:var(--panel); overflow:hidden; }
     .dropdown > summary{ list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; color:#cbd5e1; user-select:none; border-bottom:1px solid var(--border); }
@@ -167,6 +167,12 @@
           <div class="brand" title="Live Incident Map">
             <div class="dot" aria-hidden="true"></div>
             <h1 id="title">Live Incident Map</h1>
+          </div>
+
+          <!-- NEW: Basemap selector (English map options) -->
+          <div class="lang-select">
+            <label for="basemapSel">Map style</label>
+            <select id="basemapSel" aria-label="Basemap selection"></select>
           </div>
 
           <div class="lang-select">
@@ -317,12 +323,60 @@
     const countText=document.getElementById('countText');
     const activeFiltersEl=document.getElementById('activeFilters');
 
+    // === Basemap options (English labels)
+    const BaseLayers = {
+      'Carto Light (EN)': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom:19, subdomains:'abcd',
+        attribution:'&copy; OpenStreetMap contributors &copy; CARTO'
+      }),
+      'Carto Dark (EN)': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom:19, subdomains:'abcd',
+        attribution:'&copy; OpenStreetMap contributors &copy; CARTO'
+      }),
+      'Carto Voyager (EN)': L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom:19, subdomains:'abcd',
+        attribution:'&copy; OpenStreetMap contributors &copy; CARTO'
+      }),
+      'Esri WorldGray (EN)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom:19,
+        attribution:'Tiles &copy; Esri — Esri, HERE, Garmin, FAO, NOAA, USGS, &copy; OpenStreetMap contributors'
+      }),
+      'Esri Streets (EN)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom:19,
+        attribution:'Tiles &copy; Esri — Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+      })
+    };
+
+    // Populate basemap UI
+    const basemapSel = document.getElementById('basemapSel');
+    const basemapNames = Object.keys(BaseLayers);
+    basemapNames.forEach((name, idx)=>{
+      const opt=document.createElement('option');
+      opt.value=name; opt.textContent=name;
+      if(idx===0) opt.selected=true; // default
+      basemapSel.appendChild(opt);
+    });
+
     // === Map
+    const defaultBase = BaseLayers[basemapNames[0]]; // Carto Light (EN) by default
     const map=L.map('map',{
       center:[25,15], zoom:2, minZoom:2, maxZoom:16, worldCopyJump:true,
       maxBounds:[[-85,-100000],[85,100000]], maxBoundsViscosity:1.0,
-      layers:[L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19})]
+      layers:[defaultBase]
     });
+    let currentBase = defaultBase;
+
+    // Basemap change handler
+    basemapSel.addEventListener('change', (e)=>{
+      const name=e.target.value;
+      const next=BaseLayers[name];
+      if(next && next!==currentBase){
+        map.removeLayer(currentBase);
+        next.addTo(map);
+        currentBase = next;
+      }
+    });
+
     const clusters=L.markerClusterGroup({ showCoverageOnHover:false, chunkedLoading:true }).addTo(map);
 
     function makeIcon(tag){
@@ -636,7 +690,7 @@
       applyLocationFilter(value);
     }
 
-    // ===== NEW: Geocoding bounds (Nominatim) so we can zoom even with no pins
+    // ===== Geocoding bounds (Nominatim) so we can zoom even with no pins
     const geoCache = new Map(); // normalized query -> L.LatLngBounds
     async function fetchGeoBounds(query){
       const key = normalize(query);
@@ -717,7 +771,7 @@
     });
     document.getElementById('reloadBtn').addEventListener('click', ()=>loadCSV(true));
 
-    // Translation (unchanged)
+    // Translation (only applied to summaries; map tiles remain English via basemap choice)
     async function translateAll(){
       if(state.lang==='en'){ render(); return; }
       const jobs=[];
@@ -760,7 +814,7 @@
       });
     }
 
-    // Build dropdowns (unchanged logic)
+    // Build dropdowns
     function buildDropdowns(items){
       const allCats=new Set(), allTags=new Set();
       state.data.forEach(i=>{
@@ -895,7 +949,7 @@
       }
     }
 
-    // Region label (unchanged)
+    // Region label
     function regionLabel(key){
       const map = {
         'ua_ru':'Ukraine / Russia',
@@ -906,7 +960,7 @@
       return map[String(key).toLowerCase()] || key;
     }
 
-    // Render feed + map
+    // Filtered items
     function filteredItems(){
       return state.data.filter(i=>{
         if(state.location && !locationMatchesItem(state.location, i)) return false;
@@ -927,6 +981,7 @@
       });
     }
 
+    // Render feed + map
     function render(){
       clusters.clearLayers();
       feedEl.innerHTML='';
@@ -938,13 +993,11 @@
 
       if(!items.length){
         feedEl.innerHTML = `<div class="empty">No results. Try a different location or clear filters.</div>`;
-        // If user just applied a location filter and we have no pins, try geocoded bounds
         if(state._pendingRegionZoom || state._pendingSearchZoom){
           const hadSearch = state._pendingSearchZoom;
           state._pendingRegionZoom=false;
           state._pendingSearchZoom=false;
           if(hadSearch && state.location){
-            // Try to zoom to the location bounds instead of global
             zoomToGeoBounds(state.location);
           }else{
             map.flyTo([25,15], 2);
@@ -996,9 +1049,6 @@
         feedEl.appendChild(card);
       }
 
-      // Auto-zoom after committed location search:
-      // - If there are pins, fit to their bounds (current behavior)
-      // - Else (handled above) we geocode bounds
       if(state._pendingRegionZoom || state._pendingSearchZoom){
         state._pendingRegionZoom=false;
         const hadSearch = state._pendingSearchZoom;
