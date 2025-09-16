@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Incident Map (MVP)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet CSS/JS from CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Papa Parse (we'll use it to parse CSV text after fetch) -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
+    #map { width: 100%; height: 100%; }
+    aside { border-left: 1px solid #eee; padding: 12px; overflow: auto; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    .filters { display: grid; gap: 8px; margin-bottom: 12px; }
+    .controls { display: flex; gap: 8px; align-items: center; }
+    select, input[type="search"] { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag-list label { background: #f4f4f4; padding: 4px 8px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+    .feed { display: grid; gap: 10px; }
+    .card { border: 1px solid #eee; border-radius: 8px; padding: 10px; }
+    .card h3 { margin: 0 0 4px; font-size: 15px; }
+    .muted { color: #666; font-size: 12px; }
+    .legend { font-size: 12px; color: #555; margin-top: 8px; }
+    .footer { font-size: 12px; color: #888; margin-top: 12px; }
+    .error { background: #fff5f5; color: #a40000; border: 1px solid #ffd7d7; padding: 10px; border-radius: 8px; margin-bottom: 10px; display:none; }
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      aside { border-left: none; border-top: 1px solid #eee; height: 50vh; }
+      #map { height: 50vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <aside>
+      <h1>Incidents</h1>
+      <div id="errorBox" class="error"></div>
+      <div class="filters">
+        <div class="controls">
+          <select id="timeWindow">
+            <option value="all">All time</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+          </select>
+        </div>
+        <div class="controls">
+          <input id="search" type="search" placeholder="Search title/summary" />
+        </div>
+        <div class="tag-list" id="tagList"></div>
+      </div>
+      <div class="legend">Tip: pan/zoom the map; the feed updates automatically.</div>
+      <div class="feed" id="feed"></div>
+      <div class="footer">
+        Map © OpenStreetMap contributors • Data from Google Sheets (CSV).
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      // ---------- MAP ----------
+      const map = L.map('map').setView([20, 0], 2);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+      const markersLayer = L.layerGroup().addTo(map);
+
+      // ---------- STATE / UI ----------
+      const state = { data: [], activeTags: new Set(), timeWindow: 'all', query: '' };
+      const tagListEl = document.getElementById('tagList');
+      const feedEl = document.getElementById('feed');
+      const timeSel = document.getElementById('timeWindow');
+      const searchEl = document.getElementById('search');
+      const errorBox = document.getElementById('errorBox');
+
+      timeSel.addEventListener('change', () => { state.timeWindow = timeSel.value; render(); });
+      searchEl.addEventListener('input', () => { state.query = searchEl.value.toLowerCase(); render(); });
+      map.on('moveend', render);
+
+      function showError(msg) { errorBox.style.display = 'block'; errorBox.textContent = msg; }
+
+      // ---------- HELPERS ----------
+      function withinTimeWindow(iso, window) {
+        if (!iso) return false;
+        if (window === "all") return true;
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return false;
+        const now = new Date();
+        const diff = now - d;
+        const day = 86400000;
+        if (window === "24h") return diff <= day;
+        if (window === "7d") return diff <= 7 * day;
+        if (window === "30d") return diff <= 30 * day;
+        return true;
+      }
+      function inBounds(lat, lng, bounds) {
+        return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]);
+      }
+      function buildTagChips(data) {
+        const tags = new Set();
+        data.forEach(i => (i.tags || []).forEach(t => tags.add(t)));
+        tagListEl.innerHTML = '';
+        tags.forEach(tag => {
+          const label = document.createElement('label');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = tag;
+          cb.addEventListener('change', () => {
+            if (cb.checked) state.activeTags.add(tag);
+            else state.activeTags.delete(tag);
+            render();
+          });
+          label.appendChild(cb);
+          label.append(' ' + tag);
+          tagListEl.appendChild(label);
+        });
+      }
+
+      function render() {
+        const bounds = map.getBounds();
+        const items = state.data.filter(i => {
+          const matchesTime = withinTimeWindow(i.occurred_at, state.timeWindow);
+          const matchesQuery = !state.query
+            || (i.title && i.title.toLowerCase().includes(state.query))
+            || (i.summary && i.summary.toLowerCase().includes(state.query));
+          const matchesTags = state.activeTags.size === 0
+            || (i.tags || []).some(t => state.activeTags.has(t));
+          const matchesMap = inBounds(i.lat, i.lng, bounds);
+          return matchesTime && matchesQuery && matchesTags && matchesMap;
+        });
+
+        // markers
+        markersLayer.clearLayers();
+        items.forEach(i => {
+          const m = L.marker([i.lat, i.lng]).addTo(markersLayer);
+          const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
+          const tagStr = (i.tags || []).join(', ');
+          const conf = (i.confidence !== null && i.confidence !== undefined) ? `Confidence: ${i.confidence}` : '';
+          const src = i.sources && i.sources[0] ? `<br><a href="${i.sources[0].url}" target="_blank" rel="noopener">source</a>` : '';
+          m.bindPopup(`<b>${i.title || '(no title)'}</b><br>${time}<br>${i.summary || ''}<br>${tagStr}<br>${conf}${src}`);
+        });
+
+        // feed
+        feedEl.innerHTML = '';
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'muted';
+          empty.textContent = 'No incidents match the current map view/filters.';
+          feedEl.appendChild(empty);
+        } else {
+          items.forEach(i => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
+            card.innerHTML = `
+              <h3>${i.title || '(no title)'}</h3>
+              <div class="muted">${time} • ${(i.tags || []).join(', ')}</div>
+              <p>${i.summary || ''}</p>
+              <div class="muted">Confidence: ${i.confidence ?? '—'}</div>
+              <div class="source">${i.sources && i.sources[0] ? `<a href="${i.sources[0].url}" target="_blank" rel="noopener">Open source</a>` : ''}</div>
+            `;
+            feedEl.appendChild(card);
+          });
+        }
+      }
+
+      // ---------- CSV LOADER ----------
+      // Your published CSV link:
+      const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7bipbinJbUpjJN2nG8Yr0jb6fNoO8PYxTDvIyRplRvoNQcN1oyvXgTJZ-P30pDe-OD7JJ-1odsj3J/pub?output=csv";
+
+      async function loadCSV() {
+        try {
+          const res = await fetch(SHEET_CSV_URL, { mode: 'cors', cache: 'no-store' });
+          if (!res.ok) {
+            showError(`CSV HTTP error: ${res.status} ${res.statusText}`);
+            console.error("Fetch response:", res);
+            return;
+          }
+          const csvText = await res.text();
+          if (!csvText.includes('\n')) {
+            showError("Fetched content doesn't look like CSV. Open the link directly; it should show raw text rows.");
+            console.warn("Fetched preview:", csvText.slice(0, 200));
+            return;
+          }
+
+          const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+          if (parsed.errors && parsed.errors.length) {
+            console.warn("Papa.parse warnings:", parsed.errors);
+          }
+          console.log("First 3 rows:", parsed.data.slice(0, 3));
+
+          const rows = parsed.data.filter(r => r.id);
+          state.data = rows.map(r => ({
+            id: String(r.id),
+            title: r.title,
+            summary: r.summary,
+            tags: (r.tags || '').split(',').map(t => t.trim()).filter(Boolean),
+            occurred_at: r.occurred_at,
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lng),
+            confidence: r.confidence ? parseFloat(r.confidence) : null,
+            sources: r.source_url ? [{ url: r.source_url }] : []
+          }))
+          .filter(i => Number.isFinite(i.lat) && Number.isFinite(i.lng))
+          .sort((a, b) => {
+            const ta = new Date(a.occurred_at).getTime();
+            const tb = new Date(b.occurred_at).getTime();
+            return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
+          });
+
+          buildTagChips(state.data);
+          render();
+        } catch (err) {
+          console.error("CSV fetch/parse failed:", err);
+          showError("Failed to fetch CSV (network/CORS). Make sure you're running from Live Server or http://localhost, not file://");
+        }
+      }
+
+      loadCSV();
+    });
+  </script>
+</body>
+</html>
