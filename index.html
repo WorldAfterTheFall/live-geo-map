@@ -2,38 +2,74 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Live Incident Map (MVP)</title>
+  <title>Live Incident Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Leaflet CSS/JS from CDN -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Papa Parse (we'll use it to parse CSV text after fetch) -->
+  <!-- Papa Parse -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
-    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    .app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
-    #map { width: 100%; height: 100%; }
-    aside { border-left: 1px solid #eee; padding: 12px; overflow: auto; }
-    h1 { font-size: 18px; margin: 0 0 8px; }
-    .filters { display: grid; gap: 8px; margin-bottom: 12px; }
-    .controls { display: flex; gap: 8px; align-items: center; }
-    select, input[type="search"] { padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px; width: 100%; }
-    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tag-list label { background: #f4f4f4; padding: 4px 8px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-    .feed { display: grid; gap: 10px; }
-    .card { border: 1px solid #eee; border-radius: 8px; padding: 10px; }
-    .card h3 { margin: 0 0 4px; font-size: 15px; }
-    .muted { color: #666; font-size: 12px; }
-    .legend { font-size: 12px; color: #555; margin-top: 8px; }
-    .footer { font-size: 12px; color: #888; margin-top: 12px; }
-    .error { background: #fff5f5; color: #a40000; border: 1px solid #ffd7d7; padding: 10px; border-radius: 8px; margin-bottom: 10px; display:none; }
-    @media (max-width: 900px) {
-      .app { grid-template-columns: 1fr; }
-      aside { border-left: none; border-top: 1px solid #eee; height: 50vh; }
-      #map { height: 50vh; }
+    :root{
+      --bg:#0b0d12; --panel:#11151c; --muted:#8a96a8; --text:#e7edf7;
+      --accent:#5ec4ff; --border:#1e2430; --chip:#1a2230; --chip-on:#243246; --card:#0f131a;
+    }
+    *{ box-sizing:border-box }
+    html, body { height:100%; margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0a0c10; }
+    .app { display:grid; grid-template-columns:minmax(0,1fr) 420px; height:100%; }
+    #map { width:100%; height:100%; }
+
+    aside { background:var(--bg); color:var(--text); border-left:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+    .sidebar-header{ position:sticky; top:0; z-index:3; background:linear-gradient(180deg,rgba(17,21,28,.95),rgba(17,21,28,.85)); backdrop-filter:blur(4px); border-bottom:1px solid var(--border); padding:14px 14px 10px; }
+    .brand{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+    .brand .dot{ width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 10px var(--accent); }
+    h1{ font-size:18px; margin:0; letter-spacing:.2px; }
+
+    .topbar{
+      display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:8px;
+    }
+    .lang-select{
+      margin-left:auto;
+      display:flex; gap:6px; align-items:center;
+      background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:4px 8px;
+    }
+    .lang-select select{
+      background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:6px 8px; outline:none;
+    }
+
+    .tabs{ display:flex; gap:6px; flex-wrap:wrap; padding:8px; border:1px solid var(--border); border-radius:12px; background:var(--panel); }
+    .tab{ border:1px solid var(--border); background:var(--chip); color:var(--text); padding:6px 10px; border-radius:999px; cursor:pointer; font-size:13px; transition:all .15s ease; user-select:none; }
+    .tab:hover{ transform:translateY(-1px); }
+    .tab.active{ background:var(--chip-on); border-color:#2e394a; box-shadow:0 0 0 1px #2e394a inset; }
+
+    .filters{ display:grid; gap:8px; margin-top:10px; }
+    .controls{ display:flex; gap:8px; align-items:center; }
+    select, input[type="search"]{ width:100%; background:#0e131a; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:8px 10px; outline:none; }
+    .tag-list{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .tag-list label{ background:var(--chip); border:1px solid var(--border); border-radius:999px; padding:4px 8px; cursor:pointer; font-size:12px; display:inline-flex; gap:6px; align-items:center; }
+    .tag-list input{ accent-color:var(--accent); }
+    .hint{ color:var(--muted); font-size:12px; padding:6px 2px 0; }
+
+    .feed{ padding:12px; display:grid; gap:10px; overflow:auto; min-height:0; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px; }
+    .card h3{ margin:0 0 8px; font-size:15px; }
+    .meta{ color:var(--muted); font-size:12px; margin-bottom:6px; display:flex; gap:8px; flex-wrap:wrap; }
+    .source a{ color:var(--accent); text-decoration:none; }
+    .error{ background:#2b1212; color:#ffb0b0; border:1px solid #5b1f1f; padding:10px; border-radius:10px; margin:8px 0; display:none; }
+    .busy{ position:sticky; top:0; z-index:4; display:none; gap:8px; align-items:center; color:#cbd6ea; font-size:12px; margin-top:8px; }
+
+    .leaflet-control-layers{ background:rgba(17,21,28,.92); color:var(--text); border:1px solid var(--border); }
+    .leaflet-control-layers label{ color:#e7edf7; }
+    .leaflet-control a{ background:var(--panel); border:1px solid var(--border); color:var(--text); }
+    .leaflet-bar a:hover{ background:#1a2230; }
+
+    @media (max-width:980px){
+      .app{ grid-template-columns:1fr; }
+      aside{ border-left:none; border-top:1px solid var(--border); height:56vh; }
+      #map{ height:44vh; }
     }
   </style>
 </head>
@@ -41,165 +77,368 @@
   <div class="app">
     <div id="map"></div>
     <aside>
-      <h1>Incidents</h1>
-      <div id="errorBox" class="error"></div>
-      <div class="filters">
-        <div class="controls">
-          <select id="timeWindow">
-            <option value="all">All time</option>
-            <option value="24h">Last 24 hours</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-          </select>
+      <div class="sidebar-header">
+        <div class="topbar">
+          <div class="brand"><div class="dot"></div><h1 data-i18n="title">Live Incident Map</h1></div>
+          <div class="lang-select">
+            <label for="langSel" style="color:#c9d4e6; font-size:12px;" data-i18n="language">Language</label>
+            <select id="langSel" aria-label="Language">
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+              <option value="hi">हिन्दी</option>
+              <option value="es">Español</option>
+              <option value="ar">العربية</option>
+            </select>
+          </div>
         </div>
-        <div class="controls">
-          <input id="search" type="search" placeholder="Search title/summary" />
+
+        <!-- REGION TABS -->
+        <div class="tabs" id="regionTabs">
+          <div class="tab active" data-key="all" data-i18n="tab_all">All</div>
+          <div class="tab" data-key="ua_ru" data-i18n="tab_ua_ru">Ukraine / Russia</div>
+          <div class="tab" data-key="il_ps" data-i18n="tab_il_ps">Israel / Palestine</div>
+          <div class="tab" data-key="ve" data-i18n="tab_ve">Venezuela</div>
         </div>
-        <div class="tag-list" id="tagList"></div>
+
+        <!-- FILTERS -->
+        <div class="filters">
+          <div class="controls">
+            <select id="timeWindow">
+              <option value="all" data-i18n="time_all">All time</option>
+              <option value="24h" data-i18n="time_24h">Last 24 hours</option>
+              <option value="7d" data-i18n="time_7d">Last 7 days</option>
+              <option value="30d" data-i18n="time_30d">Last 30 days</option>
+            </select>
+          </div>
+          <div class="controls">
+            <input id="search" type="search" placeholder="Search title/summary" data-i18n-placeholder="search_ph" />
+          </div>
+          <div class="tag-list" id="tagList"></div>
+        </div>
+        <div id="errorBox" class="error"></div>
+        <div id="busy" class="busy">⏳ <span data-i18n="translating">Translating…</span></div>
+        <div class="hint" data-i18n="hint">Tip: click a region tab to zoom; the feed & markers filter by region + map view.</div>
       </div>
-      <div class="legend">Tip: pan/zoom the map; the feed updates automatically.</div>
+
       <div class="feed" id="feed"></div>
-      <div class="footer">
-        Map © OpenStreetMap contributors • Data from Google Sheets (CSV).
-      </div>
     </aside>
   </div>
 
   <script>
     window.addEventListener('load', () => {
-      // ---------- MAP ----------
-      const map = L.map('map').setView([20, 0], 2);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
+      /* ======================== CONFIG (edit these) ========================
+
+         1) Map labels in your chosen language
+            -> Get a free MapTiler key: https://www.maptiler.com/cloud/
+            -> Paste it below. If left empty, map stays on OSM/OpenTopo/Esri (labels won’t localize).
+
+         2) Title/Summary translation
+            -> Default provider: "libre" (uses https://libretranslate.com demo; may be rate-limited)
+            -> To disable, set TRANSLATE_PROVIDER = "none"
+            -> To use your own hosted LibreTranslate: set TRANSLATE_BASE to your URL
+               (e.g., "https://translate.yourdomain.com")
+
+       ===================================================================== */
+
+      const MAPTILER_KEY = ""; // <-- optional
+      const TRANSLATE_PROVIDER = "libre"; // "libre" | "none"
+      const TRANSLATE_BASE = "https://libretranslate.com"; // change if you host your own
+
+      // Supported UI languages
+      const LANGS = ["en","zh","hi","es","ar"];
+      let currentLang = "en";
+
+      // UI translations
+      const I18N = {
+        en:{title:"Live Incident Map",language:"Language",tab_all:"All",tab_ua_ru:"Ukraine / Russia",tab_il_ps:"Israel / Palestine",tab_ve:"Venezuela",time_all:"All time",time_24h:"Last 24 hours",time_7d:"Last 7 days",time_30d:"Last 30 days",search_ph:"Search title/summary",hint:"Tip: click a region tab to zoom; the feed & markers filter by region + map view.",no_results:"No incidents match the current view/filters.",open_source:"Open source ↗",confidence:"Confidence",translating:"Translating…"},
+        zh:{title:"事件地图",language:"语言",tab_all:"全部",tab_ua_ru:"乌克兰 / 俄罗斯",tab_il_ps:"以色列 / 巴勒斯坦",tab_ve:"委内瑞拉",time_all:"全部时间",time_24h:"过去24小时",time_7d:"过去7天",time_30d:"过去30天",search_ph:"搜索 标题/摘要",hint:"提示：选择区域标签以缩放；信息流与标记会随区域与视图过滤。",no_results:"没有符合当前视图/筛选条件的事件。",open_source:"来源 ↗",confidence:"可信度",translating:"正在翻译…"},
+        hi:{title:"लाइव घटना मानचित्र",language:"भाषा",tab_all:"सभी",tab_ua_ru:"यूक्रेन / रूस",tab_il_ps:"इज़राइल / फ़िलिस्तीन",tab_ve:"वेनेज़ुएला",time_all:"सभी समय",time_24h:"पिछले 24 घंटे",time_7d:"पिछले 7 दिन",time_30d:"पिछले 30 दिन",search_ph:"शीर्षक/सारांश खोजें",hint:"संकेत: क्षेत्र टैब चुनें; फ़ीड और मार्कर क्षेत्र व दृश्य के अनुसार फ़िल्टर होते हैं।",no_results:"वर्तमान दृश्य/फ़िल्टर से कोई घटना मेल नहीं खाती।",open_source:"स्रोत ↗",confidence:"विश्वसनीयता",translating:"अनुवाद हो रहा है…"},
+        es:{title:"Mapa de Incidentes",language:"Idioma",tab_all:"Todos",tab_ua_ru:"Ucrania / Rusia",tab_il_ps:"Israel / Palestina",tab_ve:"Venezuela",time_all:"Todo el tiempo",time_24h:"Últimas 24 horas",time_7d:"Últimos 7 días",time_30d:"Últimos 30 días",search_ph:"Buscar título/resumen",hint:"Consejo: elige una pestaña regional; el feed y los marcadores se filtran por región y vista.",no_results:"No hay incidentes que coincidan con la vista/filtros.",open_source:"Fuente ↗",confidence:"Confianza",translating:"Traduciendo…"},
+        ar:{title:"خريطة الحوادث المباشرة",language:"اللغة",tab_all:"الكل",tab_ua_ru:"أوكرانيا / روسيا",tab_il_ps:"إسرائيل / فلسطين",tab_ve:"فنزويلا",time_all:"كل الوقت",time_24h:"آخر 24 ساعة",time_7d:"آخر 7 أيام",time_30d:"آخر 30 يومًا",search_ph:"ابحث في العنوان/الملخص",hint:"تلميح: اختر تبويب منطقة للتكبير؛ يتم تصفية الخلاصة والعلامات حسب المنطقة والمنظور.",no_results:"لا توجد حوادث مطابقة للعرض/المرشحات الحالية.",open_source:"المصدر ↗",confidence:"الثقة",translating:"…جاري الترجمة"}
+      };
+
+      function applyI18n(){
+        const t = I18N[currentLang] || I18N.en;
+        document.querySelectorAll("[data-i18n]").forEach(el => {
+          const key = el.getAttribute("data-i18n");
+          if (t[key]) el.textContent = t[key];
+        });
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+          const key = el.getAttribute("data-i18n-placeholder");
+          if (t[key]) el.setAttribute("placeholder", t[key]);
+        });
+        // Re-render to refresh feed labels in the chosen language
+        render();
+        // Switch basemap to localized tiles if configured
+        if (MAPTILER_KEY) switchLocalizedBasemap();
+      }
+
+      /* -------------------- MAP LAYERS -------------------- */
+      // Fallback (no MapTiler key): OSM, OpenTopo, Esri Satellite
+      const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
+      const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: 'Data © OSM, SRTM | Tiles © OpenTopoMap (CC-BY-SA)' });
+      const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri — Sources: Esri, Maxar, Earthstar, GeoEye, USDA, USGS, AeroGRID, IGN, GIS User Community'
+      });
+
+      // Localized layers (MapTiler) — created on demand
+      let mtStreets=null, mtTopo=null, mtSat=null;
+      function makeMapTilerLayers(lang){
+        const p = `?key=${MAPTILER_KEY}&language=${lang}`;
+        mtStreets = L.tileLayer(`https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png${p}`, { maxZoom:19, attribution:'&copy; OpenMapTiles & OSM, © MapTiler' });
+        mtTopo    = L.tileLayer(`https://api.maptiler.com/maps/topo-v2/256/{z}/{x}/{y}.png${p}`,    { maxZoom:19, attribution:'&copy; OpenMapTiles & OSM, © MapTiler' });
+        mtSat     = L.tileLayer(`https://api.maptiler.com/tiles/satellite/256/{z}/{x}/{y}.jpg?key=${MAPTILER_KEY}`, { maxZoom:19, attribution:'Imagery © MapTiler & partners' });
+      }
+
+      const map = L.map('map', { center:[25,15], zoom:2, layers:[osmStd] });
+      let currentBase = osmStd;
+
+      let layersControl = L.control.layers({
+        "OpenStreetMap (Standard)": osmStd,
+        "OpenTopoMap (Terrain)": openTopo,
+        "Esri Satellite": esriSat
+      }, null, { position:'topright', collapsed:true }).addTo(map);
+
+      function switchLocalizedBasemap(){
+        const prevZoom = map.getZoom(), prevCenter = map.getCenter();
+        map.removeControl(layersControl);
+        makeMapTilerLayers(currentLang);
+        layersControl = L.control.layers({
+          "Streets (Localized)": mtStreets,
+          "Topo (Localized)": mtTopo,
+          "Satellite": mtSat
+        }, null, { position:'topright', collapsed:true }).addTo(map);
+        if (currentBase) map.removeLayer(currentBase);
+        currentBase = mtStreets;
+        currentBase.addTo(map);
+        map.setView(prevCenter, prevZoom);
+      }
+
+      if (MAPTILER_KEY){ switchLocalizedBasemap(); }
+
       const markersLayer = L.layerGroup().addTo(map);
 
-      // ---------- STATE / UI ----------
-      const state = { data: [], activeTags: new Set(), timeWindow: 'all', query: '' };
+      /* -------------------- Regions & State -------------------- */
+      const state = { data: [], activeTags:new Set(), timeWindow:'all', query:'', regionKey:'all' };
+
+      const REGION_BOUNDS = {
+        all: null,
+        ua_ru: L.latLngBounds([[44.0, 22.0],[70.0, 150.0]]),
+        il_ps: L.latLngBounds([[29.0, 33.0],[34.7, 36.0]]),
+        ve:    L.latLngBounds([[0.0, -74.0],[13.0, -59.0]])
+      };
+
+      const regionTabs = document.getElementById('regionTabs');
+      regionTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.tab'); if (!btn) return;
+        regionTabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        state.regionKey = btn.dataset.key;
+        if (state.regionKey === 'all') map.setView([25, 15], 2);
+        else map.fitBounds(REGION_BOUNDS[state.regionKey], { padding:[20,20] });
+        render();
+      });
+
       const tagListEl = document.getElementById('tagList');
       const feedEl = document.getElementById('feed');
       const timeSel = document.getElementById('timeWindow');
       const searchEl = document.getElementById('search');
       const errorBox = document.getElementById('errorBox');
+      const busyEl = document.getElementById('busy');
+      const langSel = document.getElementById('langSel');
 
       timeSel.addEventListener('change', () => { state.timeWindow = timeSel.value; render(); });
       searchEl.addEventListener('input', () => { state.query = searchEl.value.toLowerCase(); render(); });
       map.on('moveend', render);
+      langSel.addEventListener('change', () => {
+        const value = langSel.value;
+        currentLang = LANGS.includes(value) ? value : 'en';
+        applyI18n();
+        // Kick off translation for current items (titles + summaries)
+        if (TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
+      });
 
-      function showError(msg) { errorBox.style.display = 'block'; errorBox.textContent = msg; }
+      function showError(msg){ errorBox.style.display='block'; errorBox.textContent=msg; }
+      function clearError(){ errorBox.style.display='none'; errorBox.textContent=''; }
+      function showBusy(on){ busyEl.style.display = on ? 'flex' : 'none'; }
 
-      // ---------- HELPERS ----------
+      /* -------------------- Translation Utils -------------------- */
+      // Simple localStorage cache
+      const transCache = {
+        get(k){ try{ return localStorage.getItem(k); }catch{ return null; } },
+        set(k,v){ try{ localStorage.setItem(k,v); }catch{} }
+      };
+      function keyFor(lang, text){ return `tr:${lang}:${text}`; }
+
+      async function translateText(text, target){
+        if (!text || target==='en') return text;
+        const k = keyFor(target, text);
+        const cached = transCache.get(k);
+        if (cached) return cached;
+
+        if (TRANSLATE_PROVIDER === 'libre'){
+          // LibreTranslate public demo
+          const res = await fetch(`${TRANSLATE_BASE}/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ q: text, source:'auto', target: target, format:'text' })
+          });
+          if (!res.ok) throw new Error(`Translate HTTP ${res.status}`);
+          const data = await res.json();
+          const out = (data && (data.translatedText || data.translation)) || text;
+          transCache.set(k, out);
+          return out;
+        }
+
+        // Fallback (no translation)
+        return text;
+      }
+
+      // Translate currently visible items' title+summary (sequential with small batching)
+      let translateAbort = { aborted:false };
+      async function translateVisibleItems(){
+        if (TRANSLATE_PROVIDER === 'none' || currentLang==='en') return; // nothing to do
+        const t = I18N[currentLang] || I18N.en;
+
+        const viewBounds = map.getBounds();
+        const items = state.data.filter(i => inBounds(i.lat,i.lng,viewBounds));
+        if (!items.length) return;
+
+        translateAbort.aborted = false;
+        showBusy(true);
+
+        try{
+          // small concurrency to be kind to the public endpoint
+          const concurrency = 3;
+          let idx = 0;
+          async function worker(){
+            while(idx < items.length && !translateAbort.aborted){
+              const i = items[idx++];
+              // translate title & summary if not cached
+              i._t = i._t || {};
+              if (!i._t[currentLang] || !i._t[currentLang].done){
+                const [tt, ss] = await Promise.all([
+                  translateText(i.title || '', currentLang),
+                  translateText(i.summary || '', currentLang)
+                ]);
+                i._t[currentLang] = { title:tt, summary:ss, done:true };
+              }
+            }
+          }
+          const workers = Array.from({length:concurrency}, worker);
+          await Promise.all(workers);
+        } catch(e){
+          console.warn('Translation error:', e);
+        } finally{
+          showBusy(false);
+          render(); // re-render with any translated strings we now have
+        }
+      }
+
+      /* -------------------- Helpers -------------------- */
       function withinTimeWindow(iso, window) {
         if (!iso) return false;
         if (window === "all") return true;
-        const d = new Date(iso);
-        if (Number.isNaN(d.getTime())) return false;
-        const now = new Date();
-        const diff = now - d;
-        const day = 86400000;
+        const d = new Date(iso); if (Number.isNaN(d.getTime())) return false;
+        const now = new Date(); const diff = now - d; const day = 86400000;
         if (window === "24h") return diff <= day;
-        if (window === "7d") return diff <= 7 * day;
-        if (window === "30d") return diff <= 30 * day;
+        if (window === "7d") return diff <= 7*day;
+        if (window === "30d") return diff <= 30*day;
         return true;
       }
-      function inBounds(lat, lng, bounds) {
-        return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]);
-      }
+      function inBounds(lat, lng, bounds) { return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]); }
+      function matchesRegion(i){ if (state.regionKey === 'all') return true; const b = REGION_BOUNDS[state.regionKey]; return Number.isFinite(i.lat) && Number.isFinite(i.lng) && b.contains([i.lat, i.lng]); }
       function buildTagChips(data) {
         const tags = new Set();
         data.forEach(i => (i.tags || []).forEach(t => tags.add(t)));
         tagListEl.innerHTML = '';
         tags.forEach(tag => {
           const label = document.createElement('label');
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = tag;
-          cb.addEventListener('change', () => {
-            if (cb.checked) state.activeTags.add(tag);
-            else state.activeTags.delete(tag);
-            render();
-          });
-          label.appendChild(cb);
-          label.append(' ' + tag);
+          const cb = document.createElement('input'); cb.type='checkbox'; cb.value=tag;
+          cb.addEventListener('change', () => { if (cb.checked) state.activeTags.add(tag); else state.activeTags.delete(tag); render(); });
+          label.appendChild(cb); label.append(' ' + tag);
           tagListEl.appendChild(label);
         });
       }
 
+      function getTitle(i){
+        if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].title) return i.title || '';
+        return i._t[currentLang].title || i.title || '';
+      }
+      function getSummary(i){
+        if (currentLang==='en' || !i._t || !i._t[currentLang] || !i._t[currentLang].summary) return i.summary || '';
+        return i._t[currentLang].summary || i.summary || '';
+      }
+
+      /* -------------------- Render -------------------- */
       function render() {
-        const bounds = map.getBounds();
+        const t = I18N[currentLang] || I18N.en;
+        const viewBounds = map.getBounds();
         const items = state.data.filter(i => {
           const matchesTime = withinTimeWindow(i.occurred_at, state.timeWindow);
           const matchesQuery = !state.query
             || (i.title && i.title.toLowerCase().includes(state.query))
             || (i.summary && i.summary.toLowerCase().includes(state.query));
-          const matchesTags = state.activeTags.size === 0
-            || (i.tags || []).some(t => state.activeTags.has(t));
-          const matchesMap = inBounds(i.lat, i.lng, bounds);
-          return matchesTime && matchesQuery && matchesTags && matchesMap;
+          const matchesTags = state.activeTags.size === 0 || (i.tags || []).some(tt => state.activeTags.has(tt));
+          const matchesReg = matchesRegion(i);
+          const matchesMap = inBounds(i.lat, i.lng, viewBounds);
+          return matchesTime && matchesQuery && matchesTags && matchesReg && matchesMap;
         });
 
-        // markers
         markersLayer.clearLayers();
         items.forEach(i => {
           const m = L.marker([i.lat, i.lng]).addTo(markersLayer);
           const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
           const tagStr = (i.tags || []).join(', ');
-          const conf = (i.confidence !== null && i.confidence !== undefined) ? `Confidence: ${i.confidence}` : '';
-          const src = i.sources && i.sources[0] ? `<br><a href="${i.sources[0].url}" target="_blank" rel="noopener">source</a>` : '';
-          m.bindPopup(`<b>${i.title || '(no title)'}</b><br>${time}<br>${i.summary || ''}<br>${tagStr}<br>${conf}${src}`);
+          const conf = (i.confidence ?? '') !== '' ? `${t.confidence}: ${i.confidence}` : '';
+          const title = getTitle(i) || '(no title)';
+          const summary = getSummary(i);
+          const src = i.sources && i.sources[0] ? `<br><a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '';
+          m.bindPopup(`<b>${title}</b><br>${time}<br>${summary}<br>${tagStr}<br>${conf}${src}`);
         });
 
-        // feed
         feedEl.innerHTML = '';
         if (items.length === 0) {
           const empty = document.createElement('div');
-          empty.className = 'muted';
-          empty.textContent = 'No incidents match the current map view/filters.';
+          empty.className = 'card';
+          empty.innerHTML = `<div class="meta">${t.no_results}</div>`;
           feedEl.appendChild(empty);
         } else {
           items.forEach(i => {
+            const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
+            const tconf = (i.confidence ?? '') !== '' ? `<span>• ${t.confidence} ${i.confidence}</span>` : '';
             const card = document.createElement('div');
             card.className = 'card';
-            const time = i.occurred_at ? new Date(i.occurred_at).toLocaleString() : '—';
             card.innerHTML = `
-              <h3>${i.title || '(no title)'}</h3>
-              <div class="muted">${time} • ${(i.tags || []).join(', ')}</div>
-              <p>${i.summary || ''}</p>
-              <div class="muted">Confidence: ${i.confidence ?? '—'}</div>
-              <div class="source">${i.sources && i.sources[0] ? `<a href="${i.sources[0].url}" target="_blank" rel="noopener">Open source</a>` : ''}</div>
+              <h3>${getTitle(i) || '(no title)'}</h3>
+              <div class="meta">
+                <span>${time}</span>
+                ${ (i.tags||[]).length ? `<span>• ${(i.tags||[]).join(', ')}</span>` : '' }
+                ${ tconf }
+              </div>
+              ${ getSummary(i) ? `<p style="margin:6px 0 10px; line-height:1.45;">${getSummary(i)}</p>` : '' }
+              <div class="source">
+                ${ i.sources && i.sources[0] ? `<a href="${i.sources[0].url}" target="_blank" rel="noopener">${t.open_source}</a>` : '' }
+              </div>
             `;
             feedEl.appendChild(card);
           });
         }
       }
 
-      // ---------- CSV LOADER ----------
-      // Your published CSV link:
+      /* -------------------- CSV Loader -------------------- */
       const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7bipbinJbUpjJN2nG8Yr0jb6fNoO8PYxTDvIyRplRvoNQcN1oyvXgTJZ-P30pDe-OD7JJ-1odsj3J/pub?output=csv";
 
       async function loadCSV() {
         try {
+          clearError();
           const res = await fetch(SHEET_CSV_URL, { mode: 'cors', cache: 'no-store' });
-          if (!res.ok) {
-            showError(`CSV HTTP error: ${res.status} ${res.statusText}`);
-            console.error("Fetch response:", res);
-            return;
-          }
+          if (!res.ok) { showError(`CSV HTTP error: ${res.status} ${res.statusText}`); return; }
           const csvText = await res.text();
-          if (!csvText.includes('\n')) {
-            showError("Fetched content doesn't look like CSV. Open the link directly; it should show raw text rows.");
-            console.warn("Fetched preview:", csvText.slice(0, 200));
-            return;
-          }
-
           const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-          if (parsed.errors && parsed.errors.length) {
-            console.warn("Papa.parse warnings:", parsed.errors);
-          }
-          console.log("First 3 rows:", parsed.data.slice(0, 3));
-
           const rows = parsed.data.filter(r => r.id);
+
           state.data = rows.map(r => ({
             id: String(r.id),
             title: r.title,
@@ -209,24 +448,28 @@
             lat: parseFloat(r.lat),
             lng: parseFloat(r.lng),
             confidence: r.confidence ? parseFloat(r.confidence) : null,
-            sources: r.source_url ? [{ url: r.source_url }] : []
+            sources: r.source_url ? [{ url: r.source_url }] : [],
+            _t: {} // translations bucket per language
           }))
           .filter(i => Number.isFinite(i.lat) && Number.isFinite(i.lng))
-          .sort((a, b) => {
-            const ta = new Date(a.occurred_at).getTime();
-            const tb = new Date(b.occurred_at).getTime();
-            return (isNaN(tb) ? 0 : tb) - (isNaN(ta) ? 0 : ta);
-          });
+          .sort((a,b) => (new Date(b.occurred_at).getTime()||0) - (new Date(a.occurred_at).getTime()||0));
 
           buildTagChips(state.data);
           render();
+
+          // If current language isn't English and translation is enabled, start translating visible items
+          if (currentLang !== 'en' && TRANSLATE_PROVIDER !== 'none') translateVisibleItems();
         } catch (err) {
-          console.error("CSV fetch/parse failed:", err);
-          showError("Failed to fetch CSV (network/CORS). Make sure you're running from Live Server or http://localhost, not file://");
+          console.error(err);
+          showError("Failed to fetch CSV (network/CORS). Ensure the sheet is 'Published to the web' as CSV.");
         }
       }
 
+      /* -------------------- Init -------------------- */
+      function inBounds(lat, lng, bounds) { return Number.isFinite(lat) && Number.isFinite(lng) && bounds.contains([lat, lng]); }
+      applyI18n();
       loadCSV();
+      setInterval(loadCSV, 5 * 60 * 1000);
     });
   </script>
 </body>
